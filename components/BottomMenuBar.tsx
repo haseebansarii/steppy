@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface BottomMenuBarProps {
-  activeScreen?: 'home' | 'pets' | 'account';
+  activeScreen?: 'home' | 'pets' | 'furniture' | 'account';
 }
 
 export default function BottomMenuBar({ activeScreen }: BottomMenuBarProps) {
@@ -35,6 +35,20 @@ export default function BottomMenuBar({ activeScreen }: BottomMenuBarProps) {
         />
         <Text style={[styles.menuText, activeScreen === 'pets' && styles.activeText]}>
           My Pets
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={[styles.menuItem, activeScreen === 'furniture' && styles.activeItem]}
+        onPress={() => router.push('/(tabs)/furniture')}
+      >
+        <Ionicons 
+          name={activeScreen === 'furniture' ? 'gift' : 'gift-outline'} 
+          color={activeScreen === 'furniture' ? '#ffd33d' : '#8E8E93'} 
+          size={24} 
+        />
+        <Text style={[styles.menuText, activeScreen === 'furniture' && styles.activeText]}>
+          My Furniture
         </Text>
       </TouchableOpacity>
       

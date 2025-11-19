@@ -8,6 +8,17 @@ CREATE TABLE public.furniture (
   image text,
   CONSTRAINT furniture_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.goal_completions (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  user_id uuid NOT NULL,
+  completion_date date NOT NULL,
+  steps_achieved integer NOT NULL,
+  goal_steps integer NOT NULL,
+  goal_met boolean NOT NULL DEFAULT false,
+  CONSTRAINT goal_completions_pkey PRIMARY KEY (id),
+  CONSTRAINT goal_completions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.pets (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -29,8 +40,21 @@ CREATE TABLE public.profiles (
   last_step_update timestamp without time zone,
   step_source text,
   step_goal integer DEFAULT 1000,
+  current_streak integer DEFAULT 0,
+  longest_streak integer DEFAULT 0,
+  last_streak_update date,
+  last_furniture_date date,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.users_furniture (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  user_id uuid NOT NULL,
+  furniture_id bigint,
+  CONSTRAINT users_furniture_pkey PRIMARY KEY (id),
+  CONSTRAINT users_furniture_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT users_furniture_furniture_id_fkey FOREIGN KEY (furniture_id) REFERENCES public.furniture(id)
 );
 CREATE TABLE public.users_pets (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -40,6 +64,8 @@ CREATE TABLE public.users_pets (
   custom_name text,
   position_x real,
   position_y real,
+  earned_via_streak boolean DEFAULT false,
+  streak_requirement integer DEFAULT 0,
   CONSTRAINT users_pets_pkey PRIMARY KEY (id),
   CONSTRAINT users_pets_pet_id_fkey FOREIGN KEY (pet_id) REFERENCES public.pets(id),
   CONSTRAINT users_pets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
