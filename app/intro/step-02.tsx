@@ -8,7 +8,7 @@ import * as Animatable from 'react-native-animatable';
 import { router } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/components/supabase';
-import { useDailyPetLimit } from '@/hooks/useDailyPetLimit';
+import { useStreakPetSystem } from '@/hooks/useStreakPetSystem';
 import BottomMenuBar from '@/components/BottomMenuBar';
 import { useHealthData, HealthDataSource } from '@/hooks/useHealthData';
 
@@ -17,7 +17,15 @@ const BackgroundImage = require('@/assets/images/step-02-background.jpg');
 
 export default function Index() {
   const navigation = useNavigation();
-  const { hasEarnedPetToday, loading: petLimitLoading } = useDailyPetLimit();
+  const { 
+    canEarnPet, 
+    streakData, 
+    recordGoalCompletion, 
+    hasCompletedGoalToday,
+    awardNewPet,
+    getNextPetRequirement,
+    loading: streakLoading 
+  } = useStreakPetSystem();
   
   // Progress bar configuration
   const [requiredSteps, setRequiredSteps] = useState(1000);
@@ -30,6 +38,7 @@ export default function Index() {
   const [authLoading, setAuthLoading] = useState(true);
   const [healthSource, setHealthSource] = useState<HealthDataSource>('pedometer');
   const [sourceLoaded, setSourceLoaded] = useState(false);
+  const [goalCompletedToday, setGoalCompletedToday] = useState(false);
   
   // Get real-time steps from useHealthData hook (only after source is loaded)
   const { steps: currentSteps, isAvailable, error: healthError, refreshSteps } = useHealthData(sourceLoaded ? healthSource : 'pedometer');
@@ -174,11 +183,25 @@ export default function Index() {
       
       if (progress >= 100) {
         setShowContinueButton(true);
+        // Record goal completion when reached
+        recordGoalCompletion(currentSteps, requiredSteps);
       } else {
         setShowContinueButton(false);
       }
     }
-  }, [currentSteps, requiredSteps]);
+  }, [currentSteps, requiredSteps, recordGoalCompletion]);
+
+  // Check if goal was completed today on component mount
+  useEffect(() => {
+    const checkTodaysGoal = async () => {
+      const completed = await hasCompletedGoalToday();
+      setGoalCompletedToday(completed);
+    };
+    
+    if (isAuthenticated && !authLoading) {
+      checkTodaysGoal();
+    }
+  }, [isAuthenticated, authLoading, hasCompletedGoalToday]);
   
   return (
     <View style={appStyles.container}>
@@ -235,10 +258,13 @@ export default function Index() {
               </View>
             ) : checkingPet ? (
               <BaseText text="Please wait while we check your progress..." />
-            ) : hasEarnedPetToday ? (
-              <BaseText text="You've already earned your pet for today! Come back tomorrow for another challenge." />
+            ) : goalCompletedToday ? (
+              <BaseText text={`You've completed your goal today! ${canEarnPet ? 'Congratulations, you\'re eligible for a new pet!' : `Keep going on your ${streakData.currentStreak}-day streak!`}`} />
             ) : (
-              <BaseText text={`Stork is ${requiredSteps} steps away. Can you walk ${requiredSteps} steps to reach him?`} />
+              <BaseText text={canEarnPet 
+                ? `Stork is ${requiredSteps} steps away. Complete your goal to earn a new pet!` 
+                : `Stork is ${requiredSteps} steps away. Keep building your ${streakData.currentStreak}-day streak! ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more days until your next pet.`
+              } />
             )}
             
             {error && isAuthenticated && (
@@ -253,12 +279,24 @@ export default function Index() {
               </Text>
             )}
             
-            {showContinueButton && !hasEarnedPetToday && (
+            {showContinueButton && (
               <Animatable.View 
                 animation="fadeIn" 
                 duration={800}
               >
-                <Button theme="primary" label="CONTINUE" onPress={() => router.push('/intro/step-03')} />
+                {canEarnPet ? (
+                  <Button 
+                    theme="primary" 
+                    label="GET YOUR NEW PET!" 
+                    onPress={() => router.push('/intro/step-03')} 
+                  />
+                ) : (
+                  <Button 
+                    theme="primary" 
+                    label={`GREAT JOB! (${streakData.currentStreak} day streak)`} 
+                    onPress={() => router.push('/pets')} 
+                  />
+                )}
               </Animatable.View>
             )}
           </View>
