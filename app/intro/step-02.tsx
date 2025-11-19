@@ -9,7 +9,6 @@ import { router } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/components/supabase';
 import { useDailyPetLimit } from '@/hooks/useDailyPetLimit';
-import { useStepTracking } from '@/hooks/useStepTracking';
 import BottomMenuBar from '@/components/BottomMenuBar';
 import { useHealthData, HealthDataSource } from '@/hooks/useHealthData';
 
@@ -18,8 +17,7 @@ const BackgroundImage = require('@/assets/images/step-02-background.jpg');
 
 export default function Index() {
   const navigation = useNavigation();
-  const { canEarnPet, streakInfo, loading: petLimitLoading } = useDailyPetLimit();
-  const { updateStepCount, todaysSteps, goalReached } = useStepTracking();
+  const { hasEarnedPetToday, loading: petLimitLoading } = useDailyPetLimit();
   
   // Progress bar configuration
   const [requiredSteps, setRequiredSteps] = useState(1000);
@@ -176,8 +174,6 @@ export default function Index() {
       
       if (progress >= 100) {
         setShowContinueButton(true);
-        // Update step count in database when goal is reached
-        updateStepCount(currentSteps, requiredSteps);
       } else {
         setShowContinueButton(false);
       }
@@ -205,9 +201,7 @@ export default function Index() {
                       ? "Loading progress..." 
                       : progressPercentage < 100 
                         ? `Walking... ${Math.round(progressPercentage)}% complete (${currentSteps}/${requiredSteps} steps)` 
-                        : canEarnPet 
-                          ? "Challenge complete! You can earn a pet!" 
-                          : "Goal reached! Keep your streak going!"}
+                        : "Challenge complete!"}
               </Text>
 
               <View style={styles.progressBarOuter}>
@@ -241,28 +235,10 @@ export default function Index() {
               </View>
             ) : checkingPet ? (
               <BaseText text="Please wait while we check your progress..." />
-            ) : !canEarnPet ? (
-              <View style={styles.streakInfoContainer}>
-                <BaseText text={`You need a ${streakInfo.requiredStreak}-day streak to earn your ${streakInfo.petCount === 0 ? 'first' : 'next'} pet!`} />
-                <Text style={styles.streakText}>
-                  Current streak: {streakInfo.currentStreak}/{streakInfo.requiredStreak} days
-                </Text>
-                <Text style={styles.streakText}>
-                  {streakInfo.petCount === 0 
-                    ? "Complete your daily goal to start your journey!" 
-                    : streakInfo.petCount === 1 
-                      ? "Keep going! You need a 3-day streak for your second pet."
-                      : "Maintain your 7-day streak to earn another pet!"}
-                </Text>
-              </View>
+            ) : hasEarnedPetToday ? (
+              <BaseText text="You've already earned your pet for today! Come back tomorrow for another challenge." />
             ) : (
-              <View style={styles.streakInfoContainer}>
-                <BaseText text={`Great job! You can earn a pet today!`} />
-                <Text style={styles.streakText}>
-                  Streak: {streakInfo.currentStreak}/{streakInfo.requiredStreak} days ✅
-                </Text>
-                <BaseText text={`Stork is ${requiredSteps} steps away. Can you walk ${requiredSteps} steps to reach him?`} />
-              </View>
+              <BaseText text={`Stork is ${requiredSteps} steps away. Can you walk ${requiredSteps} steps to reach him?`} />
             )}
             
             {error && isAuthenticated && (
@@ -277,7 +253,7 @@ export default function Index() {
               </Text>
             )}
             
-            {showContinueButton && canEarnPet && (
+            {showContinueButton && !hasEarnedPetToday && (
               <Animatable.View 
                 animation="fadeIn" 
                 duration={800}
@@ -346,19 +322,5 @@ const styles = StyleSheet.create({
   authButtonContainer: {
     width: '100%',
     alignItems: 'center',
-  },
-  streakInfoContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 15,
-  },
-  streakText: {
-    color: '#fff',
-    fontFamily: 'SourGummy',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 5,
-    opacity: 0.9,
   },
 });

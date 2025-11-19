@@ -44,16 +44,3 @@ CREATE TABLE public.users_pets (
   CONSTRAINT users_pets_pet_id_fkey FOREIGN KEY (pet_id) REFERENCES public.pets(id),
   CONSTRAINT users_pets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
-
-CREATE TABLE public.daily_steps (
-  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  user_id uuid NOT NULL,
-  date date NOT NULL,
-  step_count integer NOT NULL DEFAULT 0,
-  goal_reached boolean NOT NULL DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT daily_steps_pkey PRIMARY KEY (id),
-  CONSTRAINT daily_steps_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT daily_steps_user_date_unique UNIQUE (user_id, date)
-);
