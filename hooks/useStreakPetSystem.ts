@@ -142,19 +142,60 @@ export function useStreakPetSystem() {
       // Check if user has completed goal today
       const completedToday = await hasCompletedGoalToday();
 
+      // Calculate streak since last pet was earned
+      let streakSinceLastPet = streak;
+      
+      if (totalPetsEarned > 0) {
+        // Get the date when the last pet was earned
+        const lastPet = userPets?.[userPets.length - 1];
+        if (lastPet) {
+          const lastPetDate = new Date(lastPet.created_at).toISOString().split('T')[0];
+          
+          // Count consecutive goal completions since the last pet was earned (excluding the day the pet was earned)
+          const { data: goalsSinceLastPet } = await supabase
+            .from('goal_completions')
+            .select('completion_date, goal_met')
+            .eq('user_id', session.user.id)
+            .gt('completion_date', lastPetDate)
+            .order('completion_date', { ascending: false });
+
+          // Calculate consecutive streak from today backwards
+          streakSinceLastPet = 0;
+          if (goalsSinceLastPet) {
+            const today = new Date().toISOString().split('T')[0];
+            let currentDate = new Date(today);
+            
+            for (const goal of goalsSinceLastPet) {
+              const goalDate = goal.completion_date;
+              const expectedDate = currentDate.toISOString().split('T')[0];
+              
+              if (goalDate === expectedDate && goal.goal_met) {
+                streakSinceLastPet++;
+                currentDate.setDate(currentDate.getDate() - 1); // Move to previous day
+              } else if (goalDate === expectedDate && !goal.goal_met) {
+                break; // Streak broken
+              } else {
+                // Gap in dates, streak broken
+                break;
+              }
+            }
+          }
+        }
+      }
+
       // Determine if user can earn a pet
       let canEarn = false;
       
       if (totalPetsEarned === 0) {
         // First pet: can earn immediately upon joining
         canEarn = true;
-      } else if (completedToday && streak >= nextRequirement) {
-        // Subsequent pets: need to meet streak requirement and complete goal today
+      } else if (completedToday && streakSinceLastPet >= nextRequirement) {
+        // Subsequent pets: need to meet streak requirement since last pet and complete goal today
         canEarn = true;
       }
 
       setStreakData({
-        currentStreak: streak,
+        currentStreak: totalPetsEarned === 0 ? streak : streakSinceLastPet,
         totalPetsEarned,
         lastGoalDate,
         nextPetRequirement: nextRequirement

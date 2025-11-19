@@ -710,8 +710,57 @@ export function UserPets() {
   // Return loading state
   if (isLoading) {
     return (
-      <View style={styles.messageContainer}>
-        <Text style={styles.messageText}>Loading your pets...</Text>
+      <View style={styles.loadingContainer}>
+        <Animatable.View 
+          animation="pulse" 
+          easing="ease-in-out"
+          iterationCount="infinite"
+          duration={1500}
+          style={styles.loadingImageContainer}
+        >
+          <Image
+            source={{ uri: getPetImageUrl('platypus', 'profile') }}
+            style={styles.loadingPetImage}
+            contentFit="contain"
+          />
+        </Animatable.View>
+        <Animatable.Text 
+          animation="fadeInUp" 
+          delay={500}
+          style={styles.loadingTitle}
+        >
+          Loading Your Pets
+        </Animatable.Text>
+        <Animatable.View 
+          animation="fadeInUp" 
+          delay={800}
+          style={styles.loadingDotsContainer}
+        >
+          <Animatable.Text
+            animation="bounce"
+            iterationCount="infinite" 
+            delay={0}
+            style={styles.loadingDot}
+          >
+            •
+          </Animatable.Text>
+          <Animatable.Text
+            animation="bounce"
+            iterationCount="infinite"
+            delay={200}
+            style={styles.loadingDot}
+          >
+            •
+          </Animatable.Text>
+          <Animatable.Text
+            animation="bounce"
+            iterationCount="infinite"
+            delay={400}
+            style={styles.loadingDot}
+          >
+            •
+          </Animatable.Text>
+        </Animatable.View>
       </View>
     );
   }
@@ -1153,6 +1202,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 30,
+  },
+  loadingImageContainer: {
+    marginBottom: 30,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  loadingPetImage: {
+    width: 80,
+    height: 80,
+  },
+  loadingTitle: {
+    color: '#ffffff',
+    fontFamily: 'SourGummy',
+    fontSize: 24,
+    textAlign: 'center',
+    marginBottom: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: {width: 1, height: 1},
+    textShadowRadius: 2,
+  },
+  loadingDotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingDot: {
+    color: '#b94ea5',
+    fontSize: 30,
+    marginHorizontal: 5,
+    fontWeight: 'bold',
+  },
   messageContainer: {
     flex: 1,
     justifyContent: 'center',

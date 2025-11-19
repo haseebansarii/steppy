@@ -214,32 +214,28 @@ export default function Index() {
             <ImageViewer imgSource={PetImage} style={{ width: 80, height: 110 }} />
           </View>
           <View style={appStyles.imageContainerBottom}>
-            <View style={styles.progressBarContainer}>
-              <Text style={styles.progressText}>
-                {authLoading 
-                  ? "Loading..." 
-                  : checkingPet 
-                    ? "Checking your progress..." 
-                    : loading 
-                      ? "Loading progress..." 
-                      : progressPercentage < 100 
-                        ? `Walking... ${Math.round(progressPercentage)}% complete (${currentSteps}/${requiredSteps} steps)` 
-                        : "Challenge complete!"}
-              </Text>
+            {!authLoading && !checkingPet && !streakLoading && !loading && isAuthenticated && !(streakData.totalPetsEarned === 0 && canEarnPet) && (
+              <View style={styles.progressBarContainer}>
+                <Text style={styles.progressText}>
+                  {progressPercentage < 100 
+                    ? `Walking... ${Math.round(progressPercentage)}% complete (${currentSteps}/${requiredSteps} steps)` 
+                    : "Challenge complete!"}
+                </Text>
 
-              <View style={styles.progressBarOuter}>
-                <Animatable.View 
-                  animation="slideInLeft" 
-                  duration={1000} 
-                  style={[styles.progressBarInner, { width: `${progressPercentage}%` }]} 
-                />
+                <View style={styles.progressBarOuter}>
+                  <Animatable.View 
+                    animation="slideInLeft" 
+                    duration={1000} 
+                    style={[styles.progressBarInner, { width: `${progressPercentage}%` }]} 
+                  />
+                </View>
               </View>
-            </View>
-            {authLoading ? (
+            )}
+            {authLoading || checkingPet || streakLoading || loading ? (
               <View style={styles.authErrorContainer}>
                 <BaseText text="Loading..." />
                 <Text style={styles.authErrorText}>
-                  Checking your authentication status...
+                  Setting up your challenge...
                 </Text>
               </View>
             ) : !isAuthenticated ? (
@@ -256,30 +252,30 @@ export default function Index() {
                   />
                 </View>
               </View>
-            ) : checkingPet ? (
-              <BaseText text="Please wait while we check your progress..." />
+            ) : streakData.totalPetsEarned === 0 && canEarnPet ? (
+              <BaseText text="Welcome to Steppy! You get your first pet just for joining! Click continue to meet your new companion." />
             ) : goalCompletedToday ? (
-              <BaseText text={`You've completed your goal today! ${canEarnPet ? 'Congratulations, you\'re eligible for a new pet!' : `Keep going on your ${streakData.currentStreak}-day streak!`}`} />
+              <BaseText text={`You've completed your goal today! ${canEarnPet ? 'Congratulations, you\'re eligible for a new pet!' : `Keep going on your ${streakData.currentStreak }-day streak!`}`} />
             ) : (
               <BaseText text={canEarnPet 
                 ? `Stork is ${requiredSteps} steps away. Complete your goal to earn a new pet!` 
-                : `Stork is ${requiredSteps} steps away. Keep building your ${streakData.currentStreak}-day streak! ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more days until your next pet.`
+                : `Stork is ${requiredSteps} steps away. Keep building your ${streakData.currentStreak }-day streak! ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more days until your next pet.`
               } />
             )}
             
-            {error && isAuthenticated && (
+            {!authLoading && !checkingPet && !streakLoading && !loading && error && isAuthenticated && (
               <Text style={styles.errorText}>
                 Error: {error}
               </Text>
             )}
             
-            {healthError && isAuthenticated && (
+            {!authLoading && !checkingPet && !streakLoading && !loading && healthError && isAuthenticated && (
               <Text style={styles.errorText}>
                 Health Data Error: {healthError}
               </Text>
             )}
             
-            {showContinueButton && (
+            {!authLoading && !checkingPet && !streakLoading && !loading && isAuthenticated && (showContinueButton || (streakData.totalPetsEarned === 0 && canEarnPet)) && (
               <Animatable.View 
                 animation="fadeIn" 
                 duration={800}
@@ -287,13 +283,13 @@ export default function Index() {
                 {canEarnPet ? (
                   <Button 
                     theme="primary" 
-                    label="GET YOUR NEW PET!" 
+                    label={streakData.totalPetsEarned === 0 ? "GET YOUR FIRST PET!" : "GET YOUR NEW PET!"} 
                     onPress={() => router.push('/intro/step-03')} 
                   />
                 ) : (
                   <Button 
                     theme="primary" 
-                    label={`GREAT JOB! (${streakData.currentStreak} day streak)`} 
+                    label={`GREAT JOB! (${streakData.currentStreak } day streak)`} 
                     onPress={() => router.push('/pets')} 
                   />
                 )}
