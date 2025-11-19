@@ -8,6 +8,7 @@ import TitleText from '@/components/TitleText';
 import Button from '@/components/Button';
 import { router } from 'expo-router';
 import { useFurnitureGiftSystem } from '@/hooks/useFurnitureGiftSystem';
+import { useHealthData, HealthDataSource } from '@/hooks/useHealthData';
 
 // Function to get furniture image URL from database
 export const getFurnitureImageUrl = (imageUrl: string): string => {
@@ -84,7 +85,71 @@ export function UserFurniture() {
   const [error, setError] = useState<string | null>(null);
   const [furniture, setFurniture] = useState<any[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [requiredSteps, setRequiredSteps] = useState(1000);
+  const [progressPercentage, setProgressPercentage] = useState(0);
+  const [healthSource, setHealthSource] = useState<HealthDataSource>('pedometer');
+  const [sourceLoaded, setSourceLoaded] = useState(false);
+  
   const { canEarnFurniture, furnitureData } = useFurnitureGiftSystem();
+  const { steps: currentSteps } = useHealthData(sourceLoaded ? healthSource : 'pedometer');
+
+  // Load user's step goal and health source from database
+  const loadUserPreferences = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('step_goal, step_source')
+        .eq('id', session.user.id)
+        .single();
+
+      if (error) {
+        console.error('Error loading user preferences:', error);
+        return;
+      }
+
+      // Set step goal
+      if (data.step_goal && data.step_goal > 0) {
+        setRequiredSteps(data.step_goal);
+      } else {
+        setRequiredSteps(1000);
+      }
+      
+      // Set health source
+      if (data.step_source) {
+        let newSource: HealthDataSource = 'pedometer';
+        if (data.step_source === 'googleFit' || data.step_source === 'appleHealth' || data.step_source === 'healthIntegration') {
+          newSource = 'healthIntegration';
+        } else if (data.step_source === 'pedometer') {
+          newSource = 'pedometer';
+        }
+        setHealthSource(newSource);
+      } else {
+        setHealthSource('pedometer');
+      }
+      
+      setSourceLoaded(true);
+      
+    } catch (err) {
+      console.error('Error loading user preferences:', err);
+      setSourceLoaded(true);
+    }
+  };
+
+  // Calculate progress when steps or goal changes
+  useEffect(() => {
+    if (requiredSteps > 0) {
+      const progress = Math.min((currentSteps / requiredSteps) * 100, 100);
+      setProgressPercentage(progress);
+    }
+  }, [currentSteps, requiredSteps]);
+
+  // Load user preferences on component mount
+  useEffect(() => {
+    loadUserPreferences();
+  }, []);
 
   // Function to fetch user furniture
   const fetchUserFurniture = async () => {
@@ -282,19 +347,23 @@ export function UserFurniture() {
   // Return furniture list with option to get new gift if available
   return (
     <View style={styles.furnitureListContainer}>
-      {canEarnFurniture && (
+      {!furnitureData.hasEarnedFurnitureToday && (
         <View style={styles.newGiftContainer}>
           <Animatable.View
             animation="pulse"
             iterationCount="infinite"
             style={styles.newGiftBanner}
           >
-            <Text style={styles.newGiftText}>🎁 New Gift Available!</Text>
+            <Text style={styles.newGiftText}>
+              {progressPercentage >= 100 && canEarnFurniture ? '🎁 New Gift Available!' : '🎁 Daily Gift Challenge'}
+            </Text>
             <Pressable
               style={styles.newGiftButton}
               onPress={() => router.push('/furniture/furniture-step-02')}
             >
-              <Text style={styles.newGiftButtonText}>Earn Today's Gift</Text>
+              <Text style={styles.newGiftButtonText}>
+                {progressPercentage >= 100 && canEarnFurniture ? 'Claim Your Gift' : 'Start Challenge'}
+              </Text>
             </Pressable>
           </Animatable.View>
         </View>
@@ -467,8 +536,8 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   furnitureCard: {
-    flex: 1,
-    margin: 5,
+    width: '48%',
+    marginBottom: 15,
   },
   furnitureItem: {
     flex: 1,

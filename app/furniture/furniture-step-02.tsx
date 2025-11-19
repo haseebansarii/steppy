@@ -231,8 +231,10 @@ export default function FurnitureStep02() {
               </View>
             ) : furnitureData.hasEarnedFurnitureToday ? (
               <BaseText text="You've already earned your furniture gift today! Come back tomorrow for another challenge." />
-            ) : goalCompletedToday && canEarnFurniture ? (
+            ) : progressPercentage >= 100 && canEarnFurniture ? (
               <BaseText text="You got a gift! Your daily goal is complete and you're eligible for a furniture reward!" />
+            ) : progressPercentage >= 100 ? (
+              <BaseText text="Daily goal completed! Great job on reaching your step target today." />
             ) : (
               <BaseText text="Gift box is waiting! Complete your daily step goal to unlock today's furniture gift." />
             )}
@@ -249,12 +251,12 @@ export default function FurnitureStep02() {
               </Text>
             )}
             
-            {!authLoading && !checkingGift && !furnitureLoading && !loading && isAuthenticated && (showContinueButton || (goalCompletedToday && canEarnFurniture)) && (
+            {!authLoading && !checkingGift && !furnitureLoading && !loading && isAuthenticated && showContinueButton && (
               <Animatable.View 
                 animation="fadeIn" 
                 duration={800}
               >
-                {canEarnFurniture ? (
+                {canEarnFurniture && progressPercentage >= 100 ? (
                   <Button 
                     theme="primary" 
                     label="OPEN YOUR GIFT!" 
@@ -266,13 +268,13 @@ export default function FurnitureStep02() {
                     label="VIEW YOUR FURNITURE" 
                     onPress={() => router.push('/(tabs)/furniture')} 
                   />
-                ) : (
+                ) : progressPercentage >= 100 ? (
                   <Button 
                     theme="primary" 
                     label="GREAT JOB! GOAL COMPLETE!" 
                     onPress={() => router.push('/(tabs)/furniture')} 
                   />
-                )}
+                ) : null}
               </Animatable.View>
             )}
           </View>
