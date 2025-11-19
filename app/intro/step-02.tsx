@@ -216,6 +216,54 @@ export default function Index() {
           <View style={appStyles.imageContainerBottom}>
             {!authLoading && !checkingPet && !streakLoading && !loading && isAuthenticated && !(streakData.totalPetsEarned === 0 && canEarnPet) && (
               <View style={styles.progressBarContainer}>
+                {/* Streak Counter */}
+                {streakData.currentStreak > 0 && (
+                  <View style={styles.streakContainer}>
+                    <Text style={styles.streakText}>
+                      Current Streak: {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''}
+                      {!canEarnPet && ` • ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more needed`}
+                    </Text>
+                    <View style={styles.flamesContainer}>
+                      {/* Current streak flames (bright) */}
+                      {Array.from({ length: Math.min(streakData.currentStreak, 10) }, (_, index) => (
+                        <Animatable.Text
+                          key={`active-${index}`}
+                          animation="pulse"
+                          iterationCount="infinite"
+                          duration={1000 + (index * 100)}
+                          style={styles.flameEmoji}
+                        >
+                          🔥
+                        </Animatable.Text>
+                      ))}
+                      
+                      {/* Remaining flames needed (dim) */}
+                      {!canEarnPet && streakData.currentStreak < 10 && (() => {
+                        const remainingNeeded = getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak;
+                        const flamesToShow = Math.min(remainingNeeded, 10 - streakData.currentStreak);
+                        return Array.from({ length: flamesToShow }, (_, index) => (
+                          <Text
+                            key={`remaining-${index}`}
+                            style={styles.dimFlameEmoji}
+                          >
+                            🔥
+                          </Text>
+                        ));
+                      })()}
+                      
+                      {streakData.currentStreak > 10 && (
+                        <Text style={styles.flameCount}>+{streakData.currentStreak - 10}</Text>
+                      )}
+                      
+                      {!canEarnPet && getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak > (10 - Math.min(streakData.currentStreak, 10)) && (
+                        <Text style={styles.dimFlameCount}>
+                          +{getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak - (10 - Math.min(streakData.currentStreak, 10))} more
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+                
                 <Text style={styles.progressText}>
                   {progressPercentage < 100 
                     ? `Walking... ${Math.round(progressPercentage)}% complete (${currentSteps}/${requiredSteps} steps)` 
@@ -307,6 +355,51 @@ const styles = StyleSheet.create({
   progressBarContainer: {
     width: '100%',
     marginBottom: 20,
+  },
+  streakContainer: {
+    alignItems: 'center',
+    marginBottom: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  streakText: {
+    color: '#fff',
+    fontFamily: 'SourGummy',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  flamesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  flameEmoji: {
+    fontSize: 18,
+    marginHorizontal: 2,
+  },
+  dimFlameEmoji: {
+    fontSize: 18,
+    marginHorizontal: 2,
+    opacity: 0.3,
+  },
+  flameCount: {
+    color: '#ffa500',
+    fontFamily: 'SourGummy',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 5,
+  },
+  dimFlameCount: {
+    color: '#ffa500',
+    fontFamily: 'SourGummy',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 5,
+    opacity: 0.4,
   },
   progressText: {
     color: '#fff',

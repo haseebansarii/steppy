@@ -13,7 +13,7 @@ import BottomMenuBar from '@/components/BottomMenuBar';
 import { useHealthData, HealthDataSource } from '@/hooks/useHealthData';
 
 // Using existing stork image as gift box
-const GiftBoxImage = require('@/assets/images/stork.png');
+const GiftBoxImage = require('@/assets/images/gift-box.png');
 const BackgroundImage = require('@/assets/images/step-02-background.jpg');
 
 export default function FurnitureStep02() {
