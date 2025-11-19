@@ -1,0 +1,14 @@
+-- Pet Position Migration Instructions
+-- 
+-- To apply this migration to your Supabase database:
+-- 
+-- 1. Go to your Supabase project dashboard
+-- 2. Navigate to "SQL Editor" 
+-- 3. Create a new query
+-- 4. Copy and paste the contents of add_pet_positions.sql
+-- 5. Click "Run" to execute the migration
+--
+-- This will add position_x and position_y columns to track where users place their pets.
+-- 
+-- Alternatively, you can run this via Supabase CLI:
+-- supabase db push

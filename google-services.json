@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "505257606585",
+    "project_id": "steppy-a1e0b",
+    "storage_bucket": "steppy-a1e0b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:505257606585:android:a8bd4029766e1541ca8a68",
+        "android_client_info": {
+          "package_name": "com.haseeb234.camel"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDElNgYcyeftCr2ldt_c4isZRPVjvtIhBE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
