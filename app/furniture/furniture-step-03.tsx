@@ -1,6 +1,7 @@
-import { View, Text, ImageBackground } from "react-native";
+import { View, Text, ImageBackground, Dimensions } from "react-native";
+import { Image } from 'expo-image';
 import BaseText from '@/components/BaseText';
-import { Furniture } from '@/components/Furniture';
+import { Furniture, getFurnitureImageUrl } from '@/components/Furniture';
 import TitleText from '@/components/TitleText';
 import appStyles from '@/assets/stylesheets/appStyles';
 import * as Animatable from 'react-native-animatable';
@@ -13,6 +14,9 @@ import { router } from 'expo-router';
 import { supabase } from '@/components/supabase';
 
 const BackgroundImage = require('@/assets/images/background.jpg');
+
+// Get screen dimensions for responsive sizing
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function FurnitureStep03() {
   const navigation = useNavigation();
@@ -67,14 +71,14 @@ export default function FurnitureStep03() {
                   image: (furnitureData.furniture as any).image || ''
                 });
               } else {
-                setAwardedFurniture({ name: 'Furniture Gift', image: '' });
+                setAwardedFurniture({ name: 'New Furniture', image: '' });
               }
             } else {
-              setAwardedFurniture({ name: 'Furniture Gift', image: '' });
+              setAwardedFurniture({ name: 'New Furniture', image: '' });
             }
           } else {
             // Still show success even without furnitureId
-            setAwardedFurniture({ name: 'Furniture Gift', image: '' });
+            setAwardedFurniture({ name: 'Mystery Furniture', image: '' });
           }
         } else {
           console.log('FurnitureStep03: Award failed:', result.error);
@@ -103,8 +107,8 @@ export default function FurnitureStep03() {
           source={BackgroundImage}
           style={appStyles.backgroundImage}
           resizeMode="cover">
-          <View style={[appStyles.imageContainer, { paddingBottom: 60 }]}>
-            <View style={appStyles.imageContainerTop}>
+          <View style={[appStyles.imageContainer, { paddingBottom: screenHeight * 0.08 }]}>
+            <View style={[appStyles.imageContainerTop, { marginTop: screenHeight * 0.05 }]}>
               <Animatable.View
                 animation="pulse"
                 iterationCount="infinite"
@@ -130,8 +134,8 @@ export default function FurnitureStep03() {
           source={BackgroundImage}
           style={appStyles.backgroundImage}
           resizeMode="cover">
-          <View style={[appStyles.imageContainer, { paddingBottom: 60 }]}>
-            <View style={appStyles.imageContainerTop}>
+          <View style={[appStyles.imageContainer, { paddingBottom: screenHeight * 0.08 }]}>
+            <View style={[appStyles.imageContainerTop, { marginTop: screenHeight * 0.05 }]}>
               <TitleText text="Oops!" />
             </View>
             <View style={appStyles.imageContainerBottom}>
@@ -155,26 +159,62 @@ export default function FurnitureStep03() {
         source={BackgroundImage}
         style={appStyles.backgroundImage}
         resizeMode="cover">
-        <View style={[appStyles.imageContainer, { paddingBottom: 60 }]}>
-          <View style={appStyles.imageContainerTop}>
-            <TitleText text="Congratulations! You got a furniture gift!" />
+        <View style={[appStyles.imageContainer, { paddingBottom: screenHeight * 0.08 }]}>
+          <View style={[appStyles.imageContainerTop, { marginTop: screenHeight * 0.00 }]}>
+            <TitleText text={awardedFurniture ? 
+              `Congratulations! You got: ${awardedFurniture.name}!` : 
+              "Congratulations! You got a furniture gift!"
+            } />
             {awardedFurniture && (
               <Animatable.View
                 animation="bounceIn"
                 duration={1500}
-                style={{ alignItems: 'center' }}
+                style={{ 
+                  alignItems: 'center',
+                  marginTop: screenHeight * 0.05,
+                  marginBottom: screenHeight * 0.05,
+                }}
               >
-                <Furniture furniture={awardedFurniture} />
+                <View style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: screenWidth * 0.7,
+                  height: screenHeight * 0.4,
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: 20,
+                }}>
+                  {awardedFurniture.image ? (
+                    <Image
+                      source={{ uri: getFurnitureImageUrl(awardedFurniture.image) }}
+                      style={{
+                        width: screenWidth * 0.6,
+                        height: screenHeight * 0.35,
+                      }}
+                      contentFit="contain"
+                    />
+                  ) : (
+                    <Text style={{
+                      color: '#ffffff',
+                      fontFamily: 'SourGummy',
+                      fontSize: 24,
+                      textAlign: 'center',
+                    }}>
+                      🎁 {awardedFurniture.name}
+                    </Text>
+                  )}
+                </View>
               </Animatable.View>
             )}
           </View>
           <View style={appStyles.imageContainerBottom}>
             <BaseText text="Click to add it to your furniture collection!" />
-            <Button
-              theme="primary"
-              label="VIEW MY FURNITURE"
-              onPress={() => router.push('/(tabs)/furniture')}
-            />
+            <View style={{ marginTop: screenHeight * 0.025 }}>
+              <Button
+                theme="primary"
+                label="VIEW MY FURNITURE"
+                onPress={() => router.push('/(tabs)/furniture')}
+              />
+            </View>
           </View>
         </View>
       </ImageBackground>

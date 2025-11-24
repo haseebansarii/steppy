@@ -1,4 +1,4 @@
-import { View, StyleSheet, Text, ImageBackground } from "react-native";
+import { View, StyleSheet, Text, ImageBackground, Dimensions } from "react-native";
 import ImageViewer from '@/components/ImageViewer';
 import Button from '@/components/Button';
 import BaseText from '@/components/BaseText';
@@ -14,6 +14,9 @@ import { useHealthData, HealthDataSource } from '@/hooks/useHealthData';
 
 const PetImage = require('@/assets/images/stork.png');
 const BackgroundImage = require('@/assets/images/step-02-background.jpg');
+
+// Get screen dimensions for responsive sizing
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function Index() {
   const navigation = useNavigation();
@@ -209,9 +212,13 @@ export default function Index() {
         source = {BackgroundImage}
         style={appStyles.backgroundImage}
         resizeMode="cover">
-        <View style={[appStyles.imageContainer, { paddingBottom: 60 }]}>
-          <View style={appStyles.imageContainerTop}>
-            <ImageViewer imgSource={PetImage} style={{ width: 80, height: 110 }} />
+        <View style={[appStyles.imageContainer, { paddingBottom: screenHeight * 0.08 }]}>
+          <View style={[appStyles.imageContainerTop, { marginTop: screenHeight * 0.02 }]}>
+            <ImageViewer imgSource={PetImage} style={{ 
+              width: screenWidth * 0.2, 
+              height: screenHeight * 0.14,
+              resizeMode: 'contain'
+            }} />
           </View>
           <View style={appStyles.imageContainerBottom}>
             {!authLoading && !checkingPet && !streakLoading && !loading && isAuthenticated && !(streakData.totalPetsEarned === 0 && canEarnPet) && (

@@ -1,4 +1,4 @@
-import { View, StyleSheet, Text, ImageBackground } from "react-native";
+import { View, StyleSheet, Text, ImageBackground, Dimensions } from "react-native";
 import ImageViewer from '@/components/ImageViewer';
 import Button from '@/components/Button';
 import BaseText from '@/components/BaseText';
@@ -15,6 +15,9 @@ import { useHealthData, HealthDataSource } from '@/hooks/useHealthData';
 // Using existing stork image as gift box
 const GiftBoxImage = require('@/assets/images/gift-box.png');
 const BackgroundImage = require('@/assets/images/step-02-background.jpg');
+
+// Get screen dimensions for responsive sizing
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function FurnitureStep02() {
   const navigation = useNavigation();
@@ -185,9 +188,13 @@ export default function FurnitureStep02() {
         source = {BackgroundImage}
         style={appStyles.backgroundImage}
         resizeMode="cover">
-        <View style={[appStyles.imageContainer, { paddingBottom: 60 }]}>
-          <View style={appStyles.imageContainerTop}>
-            <ImageViewer imgSource={GiftBoxImage} style={{ width: 80, height: 110 }} />
+        <View style={[appStyles.imageContainer, { paddingBottom: screenHeight * 0.08 }]}>
+          <View style={[appStyles.imageContainerTop, { marginTop: screenHeight * 0.01 }]}>
+            <ImageViewer imgSource={GiftBoxImage} style={{ 
+              width: screenWidth * 0.25, 
+              height: screenHeight * 0.16,
+              resizeMode: 'contain'
+            }} />
           </View>
           <View style={appStyles.imageContainerBottom}>
             {!authLoading && !checkingGift && !furnitureLoading && !loading && isAuthenticated && (
