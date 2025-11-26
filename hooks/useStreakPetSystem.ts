@@ -159,15 +159,21 @@ export function useStreakPetSystem() {
             .gt('completion_date', lastPetDate)
             .order('completion_date', { ascending: false });
 
-          // Calculate consecutive streak from today backwards
+          // Calculate consecutive streak from yesterday backwards (don't count today if in progress)
           streakSinceLastPet = 0;
           if (goalsSinceLastPet) {
             const today = new Date().toISOString().split('T')[0];
-            let currentDate = new Date(today);
+            let currentDate = new Date();
+            currentDate.setDate(currentDate.getDate() - 1); // Start from yesterday
             
             for (const goal of goalsSinceLastPet) {
               const goalDate = goal.completion_date;
               const expectedDate = currentDate.toISOString().split('T')[0];
+              
+              // Skip today's entry if it exists (we only count completed days)
+              if (goalDate === today) {
+                continue;
+              }
               
               if (goalDate === expectedDate && goal.goal_met) {
                 streakSinceLastPet++;

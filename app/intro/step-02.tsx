@@ -264,7 +264,7 @@ export default function Index() {
                     style={[styles.progressBarInner, { width: `${progressPercentage}%` }]} 
                   />
                 </View>
-                <BaseText text={`Stork is ${requiredSteps} steps away. Keep building your ${streakData.currentStreak}-day streak!`} />
+                <BaseText text={`Stork is ${requiredSteps} steps away. Keep building your day-${streakData.currentStreak+1} streak!`} />
               </>
             ) : canEarnPet ? (
               <>
