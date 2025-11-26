@@ -3,6 +3,7 @@ import { supabase } from '@/components/supabase';
 
 interface StreakData {
   currentStreak: number;
+  streakExcludingToday: number;
   totalPetsEarned: number;
   lastGoalDate: string | null;
   nextPetRequirement: number;
@@ -11,6 +12,7 @@ interface StreakData {
 export function useStreakPetSystem() {
   const [streakData, setStreakData] = useState<StreakData>({
     currentStreak: 0,
+    streakExcludingToday: 0,
     totalPetsEarned: 0,
     lastGoalDate: null,
     nextPetRequirement: 0
@@ -159,7 +161,7 @@ export function useStreakPetSystem() {
             .gt('completion_date', lastPetDate)
             .order('completion_date', { ascending: false });
 
-          // Calculate consecutive streak including today if completed
+          // Calculate consecutive streak INCLUDING today (for when goal is completed)
           streakSinceLastPet = 0;
           if (goalsSinceLastPet) {
             const today = new Date().toISOString().split('T')[0];
@@ -199,8 +201,51 @@ export function useStreakPetSystem() {
         canEarn = true;
       }
 
+      // Calculate streak EXCLUDING today (for when goal is in progress)
+      let streakExcludingToday = 0;
+      if (totalPetsEarned > 0) {
+        const lastPet = userPets?.[userPets.length - 1];
+        if (lastPet) {
+          const lastPetDate = new Date(lastPet.created_at).toISOString().split('T')[0];
+          const { data: goalsSinceLastPet } = await supabase
+            .from('goal_completions')
+            .select('completion_date, goal_met')
+            .eq('user_id', session.user.id)
+            .gt('completion_date', lastPetDate)
+            .order('completion_date', { ascending: false });
+
+          if (goalsSinceLastPet) {
+            const today = new Date().toISOString().split('T')[0];
+            let currentDate = new Date();
+            currentDate.setDate(currentDate.getDate() - 1); // Start from YESTERDAY
+            
+            for (const goal of goalsSinceLastPet) {
+              const goalDate = goal.completion_date;
+              const expectedDate = currentDate.toISOString().split('T')[0];
+              
+              // Skip today's entry completely
+              if (goalDate === today) {
+                continue;
+              }
+              
+              if (goalDate === expectedDate && goal.goal_met) {
+                streakExcludingToday++;
+                currentDate.setDate(currentDate.getDate() - 1);
+              } else if (goalDate === expectedDate && !goal.goal_met) {
+                break;
+              } else {
+                break;
+              }
+            }
+          }
+        }
+      } else {
+        streakExcludingToday = streak;
+      }
+
       setStreakData({
         currentStreak: totalPetsEarned === 0 ? streak : streakSinceLastPet,
+        streakExcludingToday: totalPetsEarned === 0 ? streak : streakExcludingToday,
         totalPetsEarned,
         lastGoalDate,
         nextPetRequirement: nextRequirement

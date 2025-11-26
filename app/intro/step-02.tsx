@@ -223,14 +223,14 @@ export default function Index() {
               </View>
             ) : progressPercentage < 100 ? (
               <>
-                {streakData.currentStreak >= 0 && (
+                {streakData.streakExcludingToday >= 0 && (
                   <View style={styles.streakContainer}>
                     <Text style={styles.streakText}>
-                      Current Streak: {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''}
-                      {!canEarnPet && ` • ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more needed`}
+                      Current Streak: {streakData.streakExcludingToday} day{streakData.streakExcludingToday !== 1 ? 's' : ''}
+                      {!canEarnPet && ` • ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.streakExcludingToday} more needed`}
                     </Text>
                     <View style={styles.flamesContainer}>
-                      {Array.from({ length: Math.min(streakData.currentStreak, 10) }, (_, index) => (
+                      {Array.from({ length: Math.min(streakData.streakExcludingToday, 10) }, (_, index) => (
                         <Animatable.Text
                           key={`active-${index}`}
                           animation="pulse"
@@ -241,15 +241,15 @@ export default function Index() {
                           🔥
                         </Animatable.Text>
                       ))}
-                      {!canEarnPet && streakData.currentStreak < 10 && (() => {
-                        const remainingNeeded = getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak;
-                        const flamesToShow = Math.min(remainingNeeded, 10 - streakData.currentStreak);
+                      {!canEarnPet && streakData.streakExcludingToday < 10 && (() => {
+                        const remainingNeeded = getNextPetRequirement(streakData.totalPetsEarned) - streakData.streakExcludingToday;
+                        const flamesToShow = Math.min(remainingNeeded, 10 - streakData.streakExcludingToday);
                         return Array.from({ length: flamesToShow }, (_, index) => (
                           <Text key={`remaining-${index}`} style={styles.dimFlameEmoji}>🔥</Text>
                         ));
                       })()}
-                      {streakData.currentStreak > 10 && (
-                        <Text style={styles.flameCount}>+{streakData.currentStreak - 10}</Text>
+                      {streakData.streakExcludingToday > 10 && (
+                        <Text style={styles.flameCount}>+{streakData.streakExcludingToday - 10}</Text>
                       )}
                     </View>
                   </View>
@@ -264,11 +264,32 @@ export default function Index() {
                     style={[styles.progressBarInner, { width: `${progressPercentage}%` }]} 
                   />
                 </View>
-                <BaseText text={`Stork is ${requiredSteps} steps away. ${streakData.currentStreak > 0 ? `Keep building your ${streakData.currentStreak}-day streak!` : 'Start your streak today!'}`} />
+                <BaseText text={`Stork is ${requiredSteps} steps away. ${streakData.streakExcludingToday > 0 ? `Keep building your ${streakData.streakExcludingToday}-day streak!` : 'Start your streak today!'}`} />
               </>
             ) : canEarnPet ? (
               <>
                 <Text style={styles.progressText}>Challenge complete! 🎉</Text>
+                <View style={styles.streakContainer}>
+                  <Text style={styles.streakText}>
+                    Current Streak: {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''}
+                  </Text>
+                  <View style={styles.flamesContainer}>
+                    {Array.from({ length: Math.min(streakData.currentStreak, 10) }, (_, index) => (
+                      <Animatable.Text
+                        key={`active-${index}`}
+                        animation="pulse"
+                        iterationCount="infinite"
+                        duration={1000 + (index * 100)}
+                        style={styles.flameEmoji}
+                      >
+                        🔥
+                      </Animatable.Text>
+                    ))}
+                    {streakData.currentStreak > 10 && (
+                      <Text style={styles.flameCount}>+{streakData.currentStreak - 10}</Text>
+                    )}
+                  </View>
+                </View>
                 <BaseText text="Congratulations! You've earned a new pet!" />
                 <Animatable.View animation="fadeIn" duration={800}>
                   <Button 
