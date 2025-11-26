@@ -33,15 +33,12 @@ export default function Index() {
   // Progress bar configuration
   const [requiredSteps, setRequiredSteps] = useState(1000);
   const [progressPercentage, setProgressPercentage] = useState(0);
-  const [showContinueButton, setShowContinueButton] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [checkingPet, setCheckingPet] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
   const [healthSource, setHealthSource] = useState<HealthDataSource>('pedometer');
   const [sourceLoaded, setSourceLoaded] = useState(false);
-  const [goalCompletedToday, setGoalCompletedToday] = useState(false);
+  const [hasPetToday, setHasPetToday] = useState(false);
   
   // Get real-time steps from useHealthData hook (only after source is loaded)
   const { steps: currentSteps, isAvailable, error: healthError, refreshSteps } = useHealthData(sourceLoaded ? healthSource : 'pedometer');
@@ -58,16 +55,12 @@ export default function Index() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setIsAuthenticated(false);
-        setError('Please sign in to continue');
         setLoading(false);
-        setAuthLoading(false);
-    
         router.push('/account');
         return;
       }
       
       setIsAuthenticated(true);
-      setAuthLoading(false);
 
       const { data, error } = await supabase
         .from('profiles')
@@ -84,9 +77,7 @@ export default function Index() {
       // Set step goal
       if (data.step_goal && data.step_goal > 0) {
         setRequiredSteps(data.step_goal);
-        console.log('✅ Using step_goal from database:', data.step_goal);
       } else {
-        console.log('⚠️ No step_goal found in database, using default 1000');
         setRequiredSteps(1000);
       }
       
@@ -99,18 +90,16 @@ export default function Index() {
           newSource = 'pedometer';
         }
         setHealthSource(newSource);
-        console.log('✅ Using health source from database:', data.step_source, '-> converted to:', newSource);
       } else {
-        console.log('⚠️ No step_source found in database, using default pedometer');
         setHealthSource('pedometer');
       }
       
-      setSourceLoaded(true); // Mark source as loaded
+      setSourceLoaded(true);
       
     } catch (err) {
       console.error('Error loading user preferences:', err);
       setError('Failed to load user preferences');
-      setSourceLoaded(true); // Still mark as loaded to prevent infinite loading
+      setSourceLoaded(true);
     } finally {
       setLoading(false);
     }
@@ -119,40 +108,32 @@ export default function Index() {
 
 
   // Check if user has already earned a pet today
- useEffect(() => {
-    const checkExistingPet = async () => {
+  useEffect(() => {
+    const checkPetToday = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          setCheckingPet(false);
-          return;
-        }
+        if (!session) return;
 
         const today = new Date().toISOString().split('T')[0];
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('users_pets')
           .select('id')
           .eq('user_id', session.user.id)
           .gte('created_at', `${today}T00:00:00.000Z`)
           .lt('created_at', `${today}T23:59:59.999Z`)
-          .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
-        if (data && !error) {
-          // User has already earned a pet today, show message instead of redirecting
-          console.log('User already earned a pet today');
-          setGoalCompletedToday(true);
-        }
+        setHasPetToday(!!data);
       } catch (err) {
-        console.error('Error checking existing pet:', err);
-      } finally {
-        setCheckingPet(false);
+        console.error('Error checking pet today:', err);
       }
     };
 
-    checkExistingPet();
-  }, []);
+    if (isAuthenticated) {
+      checkPetToday();
+    }
+  }, [isAuthenticated]);
 
 
 
@@ -172,34 +153,17 @@ export default function Index() {
     }, [])
   );
 
-  // Calculate progress when steps or goal changes
+  // Calculate progress and record completion when steps or goal changes
   useEffect(() => {
     if (requiredSteps > 0) {
       const progress = Math.min((currentSteps / requiredSteps) * 100, 100);
       setProgressPercentage(progress);
-      // console.log(`Progress calculation: ${currentSteps} steps / ${requiredSteps} goal = ${progress.toFixed(1)}%`);
       
       if (progress >= 100) {
-        setShowContinueButton(true);
-        // Record goal completion when reached
         recordGoalCompletion(currentSteps, requiredSteps);
-      } else {
-        setShowContinueButton(false);
       }
     }
   }, [currentSteps, requiredSteps, recordGoalCompletion]);
-
-  // Check if goal was completed today on component mount
-  useEffect(() => {
-    const checkTodaysGoal = async () => {
-      const completed = await hasCompletedGoalToday();
-      setGoalCompletedToday(completed);
-    };
-    
-    if (isAuthenticated && !authLoading) {
-      checkTodaysGoal();
-    }
-  }, [isAuthenticated, authLoading, hasCompletedGoalToday]);
   
 
   
@@ -218,17 +182,54 @@ export default function Index() {
             }} />
           </View>
           <View style={appStyles.imageContainerBottom}>
-            {!authLoading && !checkingPet && !streakLoading && !loading && isAuthenticated && !(streakData.totalPetsEarned === 0 && canEarnPet) && !goalCompletedToday && (
-              <View style={styles.progressBarContainer}>
-                {/* Streak Counter */}
-                {streakData.currentStreak > 0 && (
+            {loading || streakLoading ? (
+              <View style={styles.authErrorContainer}>
+                <BaseText text="Loading..." />
+                <Text style={styles.authErrorText}>Setting up your challenge...</Text>
+              </View>
+            ) : !isAuthenticated ? (
+              <View style={styles.authErrorContainer}>
+                <BaseText text="Please sign in to start your step challenge!" />
+                <Text style={styles.authErrorText}>You need to be signed in to track your steps and earn pets.</Text>
+                <View style={styles.authButtonContainer}>
+                  <Button 
+                    theme="primary" 
+                    label="Sign In" 
+                    onPress={() => router.push('/account')} 
+                  />
+                </View>
+              </View>
+            ) : streakData.totalPetsEarned === 0 ? (
+              <>
+                <BaseText text="Welcome to Steppy! You get your first pet just for joining! Click continue to meet your new companion." />
+                <Animatable.View animation="fadeIn" duration={800}>
+                  <Button 
+                    theme="primary" 
+                    label="GET YOUR FIRST PET!" 
+                    onPress={() => router.push('/intro/step-03')} 
+                  />
+                </Animatable.View>
+              </>
+            ) : hasPetToday ? (
+              <View style={styles.authErrorContainer}>
+                <BaseText text="You've already earned your pet today! Come back tomorrow to continue building your streak and earn more pets." />
+                <View style={styles.authButtonContainer}>
+                  <Button 
+                    theme="primary" 
+                    label="VIEW MY PETS" 
+                    onPress={() => router.push('/(tabs)/pets')} 
+                  />
+                </View>
+              </View>
+            ) : progressPercentage < 100 ? (
+              <>
+                {streakData.currentStreak >= 0 && (
                   <View style={styles.streakContainer}>
                     <Text style={styles.streakText}>
                       Current Streak: {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''}
                       {!canEarnPet && ` • ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more needed`}
                     </Text>
                     <View style={styles.flamesContainer}>
-                      {/* Current streak flames (bright) */}
                       {Array.from({ length: Math.min(streakData.currentStreak, 10) }, (_, index) => (
                         <Animatable.Text
                           key={`active-${index}`}
@@ -240,40 +241,22 @@ export default function Index() {
                           🔥
                         </Animatable.Text>
                       ))}
-                      
-                      {/* Remaining flames needed (dim) */}
                       {!canEarnPet && streakData.currentStreak < 10 && (() => {
                         const remainingNeeded = getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak;
                         const flamesToShow = Math.min(remainingNeeded, 10 - streakData.currentStreak);
                         return Array.from({ length: flamesToShow }, (_, index) => (
-                          <Text
-                            key={`remaining-${index}`}
-                            style={styles.dimFlameEmoji}
-                          >
-                            🔥
-                          </Text>
+                          <Text key={`remaining-${index}`} style={styles.dimFlameEmoji}>🔥</Text>
                         ));
                       })()}
-                      
                       {streakData.currentStreak > 10 && (
                         <Text style={styles.flameCount}>+{streakData.currentStreak - 10}</Text>
-                      )}
-                      
-                      {!canEarnPet && getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak > (10 - Math.min(streakData.currentStreak, 10)) && (
-                        <Text style={styles.dimFlameCount}>
-                          +{getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak - (10 - Math.min(streakData.currentStreak, 10))} more
-                        </Text>
                       )}
                     </View>
                   </View>
                 )}
-                
                 <Text style={styles.progressText}>
-                  {progressPercentage < 100 
-                    ? `Walking... ${Math.round(progressPercentage)}% complete (${currentSteps}/${requiredSteps} steps)` 
-                    : "Challenge complete!"}
+                  Walking... {Math.round(progressPercentage)}% complete ({currentSteps}/{requiredSteps} steps)
                 </Text>
-
                 <View style={styles.progressBarOuter}>
                   <Animatable.View 
                     animation="slideInLeft" 
@@ -281,80 +264,69 @@ export default function Index() {
                     style={[styles.progressBarInner, { width: `${progressPercentage}%` }]} 
                   />
                 </View>
-              </View>
-            )}
-            {authLoading || checkingPet || streakLoading || loading ? (
-              <View style={styles.authErrorContainer}>
-                <BaseText text="Loading..." />
-                <Text style={styles.authErrorText}>
-                  Setting up your challenge...
-                </Text>
-              </View>
-            ) : !isAuthenticated ? (
-              <View style={styles.authErrorContainer}>
-                <BaseText text="Please sign in to start your step challenge!" />
-                <Text style={styles.authErrorText}>
-                  You need to be signed in to track your steps and earn pets.
-                </Text>
-                <View style={styles.authButtonContainer}>
+                <BaseText text={`Stork is ${requiredSteps} steps away. Keep building your ${streakData.currentStreak}-day streak!`} />
+              </>
+            ) : canEarnPet ? (
+              <>
+                <Text style={styles.progressText}>Challenge complete! 🎉</Text>
+                <BaseText text="Congratulations! You've earned a new pet!" />
+                <Animatable.View animation="fadeIn" duration={800}>
                   <Button 
                     theme="primary" 
-                    label="Sign In" 
-                    onPress={() => router.push('/account')} 
-                  />
-                </View>
-              </View>
-            ) : streakData.totalPetsEarned === 0 && canEarnPet ? (
-              <BaseText text="Welcome to Steppy! You get your first pet just for joining! Click continue to meet your new companion." />
-            ) : goalCompletedToday ? (
-              <View style={styles.authErrorContainer}>
-                <BaseText text="You've already earned your pet today! Come back tomorrow to continue building your streak and earn more pets." />
-                <View style={styles.authButtonContainer}>
-                  <Button 
-                    theme="primary" 
-                    label="VIEW MY PETS" 
-                    onPress={() => router.push('/(tabs)/pets')} 
-                  />
-                </View>
-              </View>
-            ) : (
-              <BaseText text={canEarnPet 
-                ? `Stork is ${requiredSteps} steps away. Complete your goal to earn a new pet!` 
-                : `Stork is ${requiredSteps} steps away. Keep building your ${streakData.currentStreak }-day streak! ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more days until your next pet.`
-              } />
-            )}
-            
-            {!authLoading && !checkingPet && !streakLoading && !loading && error && isAuthenticated && (
-              <Text style={styles.errorText}>
-                Error: {error}
-              </Text>
-            )}
-            
-            {!authLoading && !checkingPet && !streakLoading && !loading && healthError && isAuthenticated && (
-              <Text style={styles.errorText}>
-                Health Data Error: {healthError}
-              </Text>
-            )}
-            
-            {!authLoading && !checkingPet && !streakLoading && !loading && isAuthenticated && (showContinueButton || (streakData.totalPetsEarned === 0 && canEarnPet)) && (
-              <Animatable.View 
-                animation="fadeIn" 
-                duration={800}
-              >
-                {canEarnPet ? (
-                  <Button 
-                    theme="primary" 
-                    label={streakData.totalPetsEarned === 0 ? "GET YOUR FIRST PET!" : "GET YOUR NEW PET!"} 
+                    label="GET YOUR NEW PET!" 
                     onPress={() => router.push('/intro/step-03')} 
                   />
-                ) : (
+                </Animatable.View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.progressText}>Challenge complete! 🎉</Text>
+                <View style={styles.streakContainer}>
+                  <Text style={styles.streakText}>
+                    Current Streak: {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''}
+                    {!canEarnPet && ` • ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more needed`}
+                  </Text>
+                  <View style={styles.flamesContainer}>
+                    {Array.from({ length: Math.min(streakData.currentStreak, 10) }, (_, index) => (
+                      <Animatable.Text
+                        key={`active-${index}`}
+                        animation="pulse"
+                        iterationCount="infinite"
+                        duration={1000 + (index * 100)}
+                        style={styles.flameEmoji}
+                      >
+                        🔥
+                      </Animatable.Text>
+                    ))}
+                    {!canEarnPet && streakData.currentStreak < 10 && (() => {
+                      const remainingNeeded = getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak;
+                      const flamesToShow = Math.min(remainingNeeded, 10 - streakData.currentStreak);
+                      return Array.from({ length: flamesToShow }, (_, index) => (
+                        <Text key={`remaining-${index}`} style={styles.dimFlameEmoji}>🔥</Text>
+                      ));
+                    })()}
+                    {streakData.currentStreak > 10 && (
+                      <Text style={styles.flameCount}>+{streakData.currentStreak - 10}</Text>
+                    )}
+                  </View>
+                </View>
+                <BaseText text={`Great job! Keep building your streak. ${getNextPetRequirement(streakData.totalPetsEarned) - streakData.currentStreak} more days until your next pet.`} />
+                <Animatable.View animation="fadeIn" duration={800}>
                   <Button 
                     theme="primary" 
-                    label={`GREAT JOB! (${streakData.currentStreak } day streak)`} 
-                    onPress={() => router.push('/pets')} 
+                    label={`GREAT JOB! (${streakData.currentStreak} day streak)`} 
+                    onPress={() => router.push('/(tabs)/pets')} 
                   />
-                )}
-              </Animatable.View>
+                </Animatable.View>
+              </>
+            )}
+            
+            {error && isAuthenticated && (
+              <Text style={styles.errorText}>Error: {error}</Text>
+            )}
+            
+            {healthError && isAuthenticated && (
+              <Text style={styles.errorText}>Health Data Error: {healthError}</Text>
             )}
           </View>
         </View>
@@ -365,10 +337,6 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  progressBarContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
   streakContainer: {
     alignItems: 'center',
     marginBottom: 15,

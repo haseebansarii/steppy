@@ -1,4 +1,4 @@
-Flow Summary
+Step-02 Flow Summary
 
 if (User not signed in) → navigate to Login.
 
