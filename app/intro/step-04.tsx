@@ -1,4 +1,4 @@
-import { Pressable, View, StyleSheet, Text, ImageBackground, TextInput, Alert } from "react-native";
+import { Pressable, View, StyleSheet, Text, ImageBackground, TextInput, Alert, Dimensions } from "react-native";
 import React, { useState } from 'react';
 import ImageViewer from '@/components/ImageViewer';
 import TitleText from '@/components/TitleText';
@@ -15,6 +15,9 @@ import { Image } from 'expo-image';
 import BottomMenuBar from '@/components/BottomMenuBar';
 
 const BackgroundImage = require('@/assets/images/background.jpg');
+
+// Get screen dimensions for responsive sizing
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // Fallback images in case Supabase is unavailable
 const fallbackPetImages: { [key: string]: any } = {
   platypus: require('@/assets/images/pets/platypus-sitting.png'),
@@ -146,10 +149,10 @@ export default function Index() {
         source={BackgroundImage}
         style={appStyles.backgroundImage}
         resizeMode="cover">
-        <View style={[appStyles.imageContainer, { paddingBottom: 60 }]}>
-          <View style={appStyles.imageContainerTop}>
+        <View style={[appStyles.imageContainer, { paddingBottom: screenHeight * 0.08 }]}>
+          <View style={[appStyles.imageContainerTop, { marginTop: screenHeight * 0.02 }]}>
             <TitleText text={`You got a ${petData?.pets?.name || ''}!`} />
-            <View style={appStyles.topInstructions}>
+            <View style={[appStyles.topInstructions, { marginTop: screenHeight * 0.02, marginBottom: screenHeight * 0.03 }]}>
               <Text style={appStyles.topText}>
                 Name your pet:
               </Text>
@@ -166,11 +169,15 @@ export default function Index() {
                   ? { uri: getPetImageUrl(petData.pets.name, 'sitting') }
                   : fallbackPetImages[petData?.pets?.name] //  || fallbackPetImages.zebra
               }
-              style={{ width: 320, height: 390 }}
+              style={{ 
+                width: screenWidth * 0.75, 
+                height: screenHeight * 0.42,
+                marginTop: screenHeight * -0.02
+              }}
               contentFit="contain"
             />
 
-            <View style={styles.buttonContainer}>
+            <View style={[styles.buttonContainer, { marginTop: screenHeight * 0.06 }]}>
               <Button 
                 label={isSaving ? "Saving..." : "Save & Continue"} 
                 theme="primary"
@@ -189,7 +196,6 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
+    marginBottom: screenHeight * 0.04,
   }
 });

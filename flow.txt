@@ -1,0 +1,19 @@
+Flow Summary
+
+if (User not signed in) → navigate to Login.
+
+
+else if( No pets )→ show welcome & free pet → button navigate to step-03.
+
+
+else if ( Already got pet today) → show message → navigate to My Pets.
+
+
+else if ( Today's goal in progress)→ show streak + progress bar.
+
+
+else ( Today's goal completed) → calculate streak:
+
+If (streak == required)→ congratulations button→navigate to step-03.
+
+else → show streak progress → navigate to My Pets.

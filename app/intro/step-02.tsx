@@ -115,40 +115,35 @@ export default function Index() {
       setLoading(false);
     }
   };
-  
+  //-----------------------------------
 
 
   // Check if user has already earned a pet today
  useEffect(() => {
     const checkExistingPet = async () => {
       try {
-        // TESTING MODE: Skip daily limit check
-        // console.log('Testing mode: Skipping daily pet limit check');
-        setCheckingPet(false);
-        return;
-        
-        /* COMMENTED OUT FOR TESTING - UNCOMMENT FOR PRODUCTION
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        if (!session) {
+          setCheckingPet(false);
+          return;
+        }
 
         const today = new Date().toISOString().split('T')[0];
         const { data, error } = await supabase
           .from('users_pets')
           .select('id')
           .eq('user_id', session.user.id)
-          .gte('created_at', ${today}T00:00:00.000Z)
-          .lt('created_at', ${today}T23:59:59.999Z)
+          .gte('created_at', `${today}T00:00:00.000Z`)
+          .lt('created_at', `${today}T23:59:59.999Z`)
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
         if (data && !error) {
-          // User has already earned a pet today, redirect to congratulations
-          console.log('User already earned a pet today, redirecting to congratulations');
-          router.push(/intro/step-05?id=${data.id});
-          return;
+          // User has already earned a pet today, show message instead of redirecting
+          console.log('User already earned a pet today');
+          setGoalCompletedToday(true);
         }
-        */
       } catch (err) {
         console.error('Error checking existing pet:', err);
       } finally {
@@ -206,6 +201,8 @@ export default function Index() {
     }
   }, [isAuthenticated, authLoading, hasCompletedGoalToday]);
   
+
+  
   return (
     <View style={appStyles.container}>
       <ImageBackground
@@ -221,7 +218,7 @@ export default function Index() {
             }} />
           </View>
           <View style={appStyles.imageContainerBottom}>
-            {!authLoading && !checkingPet && !streakLoading && !loading && isAuthenticated && !(streakData.totalPetsEarned === 0 && canEarnPet) && (
+            {!authLoading && !checkingPet && !streakLoading && !loading && isAuthenticated && !(streakData.totalPetsEarned === 0 && canEarnPet) && !goalCompletedToday && (
               <View style={styles.progressBarContainer}>
                 {/* Streak Counter */}
                 {streakData.currentStreak > 0 && (
@@ -310,7 +307,16 @@ export default function Index() {
             ) : streakData.totalPetsEarned === 0 && canEarnPet ? (
               <BaseText text="Welcome to Steppy! You get your first pet just for joining! Click continue to meet your new companion." />
             ) : goalCompletedToday ? (
-              <BaseText text={`You've completed your goal today! ${canEarnPet ? 'Congratulations, you\'re eligible for a new pet!' : `Keep going on your ${streakData.currentStreak }-day streak!`}`} />
+              <View style={styles.authErrorContainer}>
+                <BaseText text="You've already earned your pet today! Come back tomorrow to continue building your streak and earn more pets." />
+                <View style={styles.authButtonContainer}>
+                  <Button 
+                    theme="primary" 
+                    label="VIEW MY PETS" 
+                    onPress={() => router.push('/(tabs)/pets')} 
+                  />
+                </View>
+              </View>
             ) : (
               <BaseText text={canEarnPet 
                 ? `Stork is ${requiredSteps} steps away. Complete your goal to earn a new pet!` 

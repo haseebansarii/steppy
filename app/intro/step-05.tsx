@@ -1,4 +1,4 @@
-import { View, StyleSheet, Text, ImageBackground } from "react-native";
+import { View, StyleSheet, Text, ImageBackground, Dimensions } from "react-native";
 import ImageViewer from '@/components/ImageViewer';
 import Button from '@/components/Button';
 import BaseText from '@/components/BaseText';
@@ -14,6 +14,9 @@ import { Image } from 'expo-image';
 import BottomMenuBar from '@/components/BottomMenuBar';
 
 const BackgroundImage = require('@/assets/images/background.jpg');
+
+// Get screen dimensions for responsive sizing
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // Fallback images in case Supabase is unavailable
 const fallbackPetImages: { [key: string]: any } = {
   platypus: require('@/assets/images/pets/platypus-sitting.png'),
@@ -64,17 +67,17 @@ export default function Index() {
         source={BackgroundImage}
         style={appStyles.backgroundImage}
         resizeMode="cover">
-        <View style={[styles.container, { paddingBottom: 60 }]}>
-          <View style={styles.topSection}>
+        <View style={[styles.container, { paddingBottom: screenHeight * 0.04 }]}>
+          <View style={[styles.topSection, { marginTop: screenHeight * 0.03 }]}>
             <Animatable.View 
               animation="fadeIn" 
               duration={1000}
               style={styles.congratulationsContainer}
             >
-              <Text style={styles.congratulationsTitle}>
+              <Text style={[styles.congratulationsTitle, { fontSize: screenWidth * 0.067 }]}>
                 🎉 Congratulations! 🎉
               </Text>
-              <Text style={styles.congratulationsSubtitle}>
+              <Text style={[styles.congratulationsSubtitle, { fontSize: screenWidth * 0.065 }]}>
                 You earned a new pet today!
               </Text>
             </Animatable.View>
@@ -89,21 +92,31 @@ export default function Index() {
                 duration={1500}
                 style={styles.petContainer}
               >
-                <Text style={styles.petName}>
+                <Text style={[styles.petName, { 
+                  fontSize: screenWidth * 0.08,
+                  marginBottom: screenHeight * 0.03
+                }]}>
                   Meet {petData.custom_name || petData.pets?.name || 'your new pet'}!
                 </Text>
-                <View style={styles.imageWrapper}>
+                <View style={[styles.imageWrapper, {
+                  width: screenWidth * 0.7,
+                  height: screenHeight * 0.35,
+                  marginBottom: screenHeight * 0.04
+                }]}>
                   <Image
                     source={
                       petData?.pets?.name 
                         ? { uri: getPetImageUrl(petData.pets.name, 'sitting') }
                         : fallbackPetImages[petData?.pets?.name] || fallbackPetImages.zebra
                     }
-                    style={styles.petImage}
+                    style={{
+                      width: screenWidth * 0.65,
+                      height: screenHeight * 0.33,
+                    }}
                     contentFit="contain"
                   />
                 </View>
-                <BaseText text="Great job completing your step challenge! Your new pet is now part of your collection." />
+                {/* <BaseText text="Great job completing your step challenge! Your new pet is now part of your collection." /> */}
               </Animatable.View>
             ) : (
               <Text style={styles.errorText}>
@@ -130,8 +143,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
+    paddingHorizontal: screenWidth * 0.05,
+    paddingVertical: screenHeight * 0.02,
   },
   topSection: {
     flex: 0.3,
@@ -150,54 +163,43 @@ const styles = StyleSheet.create({
   },
   congratulationsContainer: {
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: screenWidth * 0.05,
   },
   congratulationsTitle: {
-    fontSize: 28,
     fontFamily: 'SourGummy',
     color: '#b94ea5',
     textAlign: 'center',
-    marginBottom: 10,
-    marginTop: 18,
+    marginBottom: screenHeight * 0.015,
+    marginTop: screenHeight * 0.025,
   },
   congratulationsSubtitle: {
-    fontSize: 26,
     fontFamily: 'SourGummy',
     color: '#fff',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: screenHeight * 0.03,
   },
   petContainer: {
     alignItems: 'center',
     width: '100%',
   },
   petName: {
-    fontSize: 20,
     fontFamily: 'SourGummy',
     color: '#b94ea5',
     textAlign: 'center',
-    marginBottom: 50,
+
   },
   imageWrapper: {
-    width: 180,
-    height: 180,
-    marginBottom: 75,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  petImage: {
-    width: 280,
-    height: 280,
-    resizeMode: 'contain',
-  },
   loadingText: {
-    fontSize: 16,
+    fontSize: screenWidth * 0.04,
     fontFamily: 'SourGummy',
     color: '#fff',
     textAlign: 'center',
   },
   errorText: {
-    fontSize: 16,
+    fontSize: screenWidth * 0.04,
     fontFamily: 'SourGummy',
     color: '#ff6b6b',
     textAlign: 'center',
