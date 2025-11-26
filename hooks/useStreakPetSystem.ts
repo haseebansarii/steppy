@@ -159,21 +159,15 @@ export function useStreakPetSystem() {
             .gt('completion_date', lastPetDate)
             .order('completion_date', { ascending: false });
 
-          // Calculate consecutive streak from yesterday backwards (don't count today if in progress)
+          // Calculate consecutive streak including today if completed
           streakSinceLastPet = 0;
           if (goalsSinceLastPet) {
             const today = new Date().toISOString().split('T')[0];
-            let currentDate = new Date();
-            currentDate.setDate(currentDate.getDate() - 1); // Start from yesterday
+            let currentDate = new Date(); // Start from today
             
             for (const goal of goalsSinceLastPet) {
               const goalDate = goal.completion_date;
               const expectedDate = currentDate.toISOString().split('T')[0];
-              
-              // Skip today's entry if it exists (we only count completed days)
-              if (goalDate === today) {
-                continue;
-              }
               
               if (goalDate === expectedDate && goal.goal_met) {
                 streakSinceLastPet++;
@@ -181,7 +175,12 @@ export function useStreakPetSystem() {
               } else if (goalDate === expectedDate && !goal.goal_met) {
                 break; // Streak broken
               } else {
-                // Gap in dates, streak broken
+                // Gap in dates - if this is today and no record exists, don't count it but continue checking yesterday
+                if (expectedDate === today) {
+                  currentDate.setDate(currentDate.getDate() - 1);
+                  continue;
+                }
+                // Otherwise, streak is broken
                 break;
               }
             }
