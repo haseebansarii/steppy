@@ -628,8 +628,8 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
             styles.draggablePetContainer,
             {
               transform: [{ translateX: pan.x }, { translateY: pan.y }],
-              zIndex: isDragging ? 100 : 40, // Lower than overlay (50) when not dragging
-              elevation: isDragging ? 100 : 40, // Android elevation
+              zIndex: isDragging ? 100 : 25, // Below furniture when not dragging
+              elevation: isDragging ? 100 : 25, // Android elevation
             },
           ]}
           {...panResponder.panHandlers}
@@ -677,8 +677,8 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
                     { translateX: furniturePans.current[item.id].x },
                     { translateY: furniturePans.current[item.id].y }
                   ],
-                  zIndex: draggingFurnitureId === item.id ? 60 : 30,
-                  elevation: draggingFurnitureId === item.id ? 60 : 30,
+                  zIndex: draggingFurnitureId === item.id ? 100 : 35,
+                  elevation: draggingFurnitureId === item.id ? 100 : 35,
                 },
               ]}
               {...createFurniturePanResponder(item.id).panHandlers}
@@ -1584,7 +1584,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 120,
     height: 120,
-    zIndex: 30,
+    zIndex: 35,
   },
   furnitureImage: {
     width: 120,
