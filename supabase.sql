@@ -52,9 +52,13 @@ CREATE TABLE public.users_furniture (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   user_id uuid NOT NULL,
   furniture_id bigint,
+  position_x real,
+  position_y real,
+  user_pet_id bigint,
   CONSTRAINT users_furniture_pkey PRIMARY KEY (id),
   CONSTRAINT users_furniture_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT users_furniture_furniture_id_fkey FOREIGN KEY (furniture_id) REFERENCES public.furniture(id)
+  CONSTRAINT users_furniture_furniture_id_fkey FOREIGN KEY (furniture_id) REFERENCES public.furniture(id),
+  CONSTRAINT users_furniture_user_pet_id_fkey FOREIGN KEY (user_pet_id) REFERENCES public.users_pets(id)
 );
 CREATE TABLE public.users_pets (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
