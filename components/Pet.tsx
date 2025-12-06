@@ -106,6 +106,8 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
   const [availableFurniture, setAvailableFurniture] = useState<any[]>([]);
   const [showFurnitureModal, setShowFurnitureModal] = useState(false);
   const [draggingFurnitureId, setDraggingFurnitureId] = useState<number | null>(null);
+  const [selectedFurnitureId, setSelectedFurnitureId] = useState<number | null>(null);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
   
   // Pet positioning state
   const pan = useRef(new Animated.ValueXY()).current;
@@ -304,6 +306,84 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
     } catch (err) {
       console.error('💥 Error in addFurnitureToPet:', err);
       Alert.alert('Error', 'Failed to add furniture');
+    }
+  };
+
+  // Remove furniture from pet
+  const removeFurnitureFromPet = async (furnitureItemId: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Update furniture to unassign it from this pet
+      const { error } = await supabase
+        .from('users_furniture')
+        .update({ 
+          user_pet_id: null,
+          position_x: null,
+          position_y: null
+        })
+        .eq('id', furnitureItemId)
+        .eq('user_id', session.user.id);
+
+      if (error) {
+        console.error('❌ Error removing furniture:', error);
+        Alert.alert('Error', 'Failed to remove furniture');
+        return;
+      }
+
+      // Refresh furniture lists
+      const { data: assignedFurniture } = await supabase
+        .from('users_furniture')
+        .select('id, position_x, position_y, furniture_id, furniture ( id, name, image )')
+        .eq('user_pet_id', userPetData.id);
+
+      const { data: unassignedFurniture } = await supabase
+        .from('users_furniture')
+        .select('id, furniture_id, furniture ( id, name, image )')
+        .eq('user_id', session.user.id)
+        .is('user_pet_id', null);
+
+      setFurnitureItems(assignedFurniture || []);
+      setAvailableFurniture(unassignedFurniture || []);
+      
+      // Remove pan responder for removed furniture
+      delete furniturePans.current[furnitureItemId];
+      
+      console.log('✅ Furniture removed successfully');
+    } catch (err) {
+      console.error('💥 Error in removeFurnitureFromPet:', err);
+      Alert.alert('Error', 'Failed to remove furniture');
+    }
+  };
+
+  // Handle double tap on furniture
+  const furnitureTapCounts = useRef<{ [key: number]: { count: number; timer: number | null } }>({});
+  
+  const handleFurnitureTap = (furnitureId: number) => {
+    if (!furnitureTapCounts.current[furnitureId]) {
+      furnitureTapCounts.current[furnitureId] = { count: 0, timer: null };
+    }
+    
+    const tapData = furnitureTapCounts.current[furnitureId];
+    tapData.count += 1;
+    
+    if (tapData.timer) {
+      clearTimeout(tapData.timer);
+    }
+    
+    if (tapData.count === 2) {
+      // Double tap detected
+      setSelectedFurnitureId(furnitureId);
+      setShowRemoveModal(true);
+      tapData.count = 0;
+      tapData.timer = null;
+    } else {
+      // Single tap - wait for potential second tap
+      tapData.timer = setTimeout(() => {
+        tapData.count = 0;
+        tapData.timer = null;
+      }, 300);
     }
   };
 
@@ -683,14 +763,20 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
               ]}
               {...createFurniturePanResponder(item.id).panHandlers}
             >
-              <Image
-                source={{ uri: item.furniture.image }}
-                style={[
-                  styles.furnitureImage,
-                  { opacity: draggingFurnitureId === item.id ? 0.8 : 1 }
-                ]}
-                contentFit="contain"
-              />
+              <TouchableOpacity
+                style={styles.furnitureImageContainer}
+                onPress={() => handleFurnitureTap(item.id)}
+                activeOpacity={0.8}
+              >
+                <Image
+                  source={{ uri: item.furniture.image }}
+                  style={[
+                    styles.furnitureImage,
+                    { opacity: draggingFurnitureId === item.id ? 0.8 : 1 }
+                  ]}
+                  contentFit="contain"
+                />
+              </TouchableOpacity>
             </Animated.View>
           );
         })}
@@ -742,23 +828,94 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
                   <Text style={styles.emptyStateSubtext}>Complete goals to earn furniture!</Text>
                 </View>
               ) : (
-                availableFurniture.map((item) => (
+                // Group furniture by furniture_id and show count
+                Object.values(
+                  availableFurniture.reduce((groups: any, item) => {
+                    const furnitureId = item.furniture_id;
+                    if (!groups[furnitureId]) {
+                      groups[furnitureId] = {
+                        furniture: item.furniture,
+                        items: [],
+                        count: 0
+                      };
+                    }
+                    groups[furnitureId].items.push(item);
+                    groups[furnitureId].count += 1;
+                    return groups;
+                  }, {})
+                ).map((group: any) => (
                   <TouchableOpacity
-                    key={item.id}
+                    key={group.furniture.id}
                     style={styles.furnitureListItem}
-                    onPress={() => addFurnitureToPet(item.id)}
+                    onPress={() => addFurnitureToPet(group.items[0].id)}
                   >
                     <Image
-                      source={{ uri: item.furniture.image }}
+                      source={{ uri: group.furniture.image }}
                       style={styles.furnitureListImage}
                       contentFit="contain"
                     />
-                    <Text style={styles.furnitureListText}>{item.furniture.name}</Text>
-                    <AntDesign name="right" size={20} color="#666" />
+                    <View style={styles.furnitureTextContainer}>
+                      <Text style={styles.furnitureListText}>{group.furniture.name}</Text>
+                      {group.count > 1 && (
+                        <Text style={styles.furnitureCountText}>Available: {group.count}</Text>
+                      )}
+                    </View>
+                    <View style={styles.furnitureRightSection}>
+                      {group.count > 1 && (
+                        <View style={styles.countBadge}>
+                          <Text style={styles.countBadgeText}>{group.count}</Text>
+                        </View>
+                      )}
+                      <AntDesign name="right" size={20} color="#666" />
+                    </View>
                   </TouchableOpacity>
                 ))
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Remove Furniture Modal */}
+      <Modal
+        visible={showRemoveModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRemoveModal(false)}
+      >
+        <View style={styles.removeModalOverlay}>
+          <View style={styles.removeModalContent}>
+            <Text style={styles.removeModalTitle}>Furniture Options</Text>
+            <Text style={styles.removeModalText}>
+              What would you like to do with this furniture?
+            </Text>
+            
+            <View style={styles.removeModalButtons}>
+              <TouchableOpacity
+                style={[styles.removeModalButton, styles.removeButton]}
+                onPress={() => {
+                  setShowRemoveModal(false);
+                  if (selectedFurnitureId) {
+                    removeFurnitureFromPet(selectedFurnitureId);
+                    setSelectedFurnitureId(null);
+                  }
+                }}
+              >
+                <AntDesign name="delete" size={20} color="#fff" />
+                <Text style={styles.removeButtonText}>Remove</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.removeModalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowRemoveModal(false);
+                  setSelectedFurnitureId(null);
+                }}
+              >
+                <AntDesign name="close" size={20} color="#666" />
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1567,13 +1724,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#b94ea5',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
     gap: 6,
     position: 'absolute',
     right: 15,
-    top: 10,
+    top: 30,
     zIndex: 101,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   addFurnitureButtonText: {
     color: '#fff',
@@ -1590,29 +1752,112 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
   },
+  furnitureImageContainer: {
+    width: 120,
+    height: 120,
+  },
+  removeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeModalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    width: '80%',
+    maxWidth: 350,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  removeModalTitle: {
+    fontFamily: 'SourGummy',
+    fontSize: 20,
+    color: '#333',
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  removeModalText: {
+    fontFamily: 'SourGummy',
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  removeModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  removeModalButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  removeButton: {
+    backgroundColor: '#ff4444',
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  removeButtonText: {
+    color: '#fff',
+    fontFamily: 'SourGummy',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontFamily: 'SourGummy',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    width: '80%',
-    maxHeight: '70%',
-    padding: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    width: '85%',
+    maxWidth: 500,
+    maxHeight: '75%',
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 2,
+    borderBottomColor: '#f0f0f0',
   },
   modalTitle: {
     fontFamily: 'SourGummy',
-    fontSize: 20,
-    color: '#000',
+    fontSize: 22,
+    color: '#b94ea5',
+    fontWeight: '600',
   },
   furnitureList: {
     maxHeight: 400,
@@ -1620,37 +1865,81 @@ const styles = StyleSheet.create({
   furnitureListItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    marginBottom: 10,
+    padding: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#e8e8e8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   furnitureListImage: {
-    width: 60,
-    height: 60,
+    width: 70,
+    height: 70,
     marginRight: 15,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
   },
   furnitureListText: {
-    flex: 1,
     fontFamily: 'SourGummy',
-    fontSize: 16,
-    color: '#000',
+    fontSize: 17,
+    color: '#333',
+    fontWeight: '500',
+  },
+  furnitureTextContainer: {
+    flex: 1,
+    marginRight: 10,
+  },
+  furnitureCountText: {
+    fontFamily: 'SourGummy',
+    fontSize: 13,
+    color: '#888',
+    marginTop: 2,
+  },
+  furnitureRightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  countBadge: {
+    backgroundColor: '#b94ea5',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  countBadgeText: {
+    color: '#fff',
+    fontFamily: 'SourGummy',
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
-    padding: 30,
+    padding: 40,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 16,
+    marginVertical: 20,
   },
   emptyStateText: {
     fontFamily: 'SourGummy',
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 8,
+    fontSize: 19,
+    color: '#555',
+    marginBottom: 10,
+    fontWeight: '600',
   },
   emptyStateSubtext: {
     fontFamily: 'SourGummy',
-    fontSize: 14,
-    color: '#999',
+    fontSize: 15,
+    color: '#888',
     textAlign: 'center',
+    lineHeight: 22,
   },
 });
 
