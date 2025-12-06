@@ -1,4 +1,4 @@
-import { Pressable, View, ImageBackground, Alert, TouchableOpacity, TextInput, PanResponder, Dimensions } from "react-native";
+import { Pressable, View, ImageBackground, Alert, TouchableOpacity, TextInput, PanResponder, Dimensions, Modal, ScrollView } from "react-native";
 import ImageViewer from '@/components/ImageViewer';
 import * as Animatable from 'react-native-animatable';
 import BaseText from '@/components/BaseText';
@@ -101,10 +101,19 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Furniture state
+  const [furnitureItems, setFurnitureItems] = useState<any[]>([]);
+  const [availableFurniture, setAvailableFurniture] = useState<any[]>([]);
+  const [showFurnitureModal, setShowFurnitureModal] = useState(false);
+  const [draggingFurnitureId, setDraggingFurnitureId] = useState<number | null>(null);
+  
   // Pet positioning state
   const pan = useRef(new Animated.ValueXY()).current;
   const [petPosition, setPetPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Furniture pan responders (store multiple)
+  const furniturePans = useRef<{ [key: number]: Animated.ValueXY }>({});
   // Use custom landscape dimensions since app is forced to landscape
   const screenData = {
     width: 853,  // Landscape width
@@ -215,6 +224,135 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
     } catch (err) {
       console.error('💥 Error in savePetPosition:', err);
     }
+  };
+
+  // Save furniture position to database
+  const saveFurniturePosition = async (furnitureId: number, x: number, y: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { error } = await supabase
+        .from('users_furniture')
+        .update({ 
+          position_x: x, 
+          position_y: y 
+        })
+        .eq('id', furnitureId)
+        .eq('user_id', session.user.id);
+
+      if (error) {
+        console.error('❌ Error saving furniture position:', error);
+      } else {
+        console.log(`✅ Furniture position saved:`, { furnitureId, x, y });
+      }
+    } catch (err) {
+      console.error('💥 Error in saveFurniturePosition:', err);
+    }
+  };
+
+  // Add furniture to pet
+  const addFurnitureToPet = async (furnitureItemId: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !userPetData?.id) return;
+
+      // Update furniture to assign it to this pet with default position
+      const defaultX = 100;
+      const defaultY = 100;
+      
+      const { error } = await supabase
+        .from('users_furniture')
+        .update({ 
+          user_pet_id: userPetData.id,
+          position_x: defaultX,
+          position_y: defaultY
+        })
+        .eq('id', furnitureItemId)
+        .eq('user_id', session.user.id);
+
+      if (error) {
+        console.error('❌ Error adding furniture to pet:', error);
+        Alert.alert('Error', 'Failed to add furniture');
+        return;
+      }
+
+      // Refresh furniture lists
+      const { data: assignedFurniture } = await supabase
+        .from('users_furniture')
+        .select('id, position_x, position_y, furniture_id, furniture ( id, name, image )')
+        .eq('user_pet_id', userPetData.id);
+
+      const { data: unassignedFurniture } = await supabase
+        .from('users_furniture')
+        .select('id, furniture_id, furniture ( id, name, image )')
+        .eq('user_id', session.user.id)
+        .is('user_pet_id', null);
+
+      setFurnitureItems(assignedFurniture || []);
+      setAvailableFurniture(unassignedFurniture || []);
+      
+      // Initialize pan responder for new furniture
+      if (!furniturePans.current[furnitureItemId]) {
+        furniturePans.current[furnitureItemId] = new Animated.ValueXY({
+          x: defaultX,
+          y: defaultY
+        });
+      }
+      
+      setShowFurnitureModal(false);
+    } catch (err) {
+      console.error('💥 Error in addFurnitureToPet:', err);
+      Alert.alert('Error', 'Failed to add furniture');
+    }
+  };
+
+  // Create pan responder for furniture
+  const createFurniturePanResponder = (furnitureId: number) => {
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderGrant: () => {
+        setDraggingFurnitureId(furnitureId);
+        const currentPan = furniturePans.current[furnitureId];
+        if (currentPan) {
+          currentPan.setOffset({
+            x: (currentPan.x as any)._value,
+            y: (currentPan.y as any)._value,
+          });
+          currentPan.setValue({ x: 0, y: 0 });
+        }
+      },
+      onPanResponderMove: Animated.event(
+        [null, { dx: furniturePans.current[furnitureId]?.x, dy: furniturePans.current[furnitureId]?.y }],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: (evt, gestureState) => {
+        setDraggingFurnitureId(null);
+        
+        const currentPan = furniturePans.current[furnitureId];
+        if (!currentPan) return;
+
+        const finalX = ((currentPan.x as any)._offset || 0) + gestureState.dx;
+        const finalY = ((currentPan.y as any)._offset || 0) + gestureState.dy;
+        
+        // Boundary constraints for furniture
+        const furnitureSize = 120;
+        const minX = -40;
+        const maxX = screenData.width - furnitureSize + 40;
+        const minY = -20;
+        const maxY = screenData.height - furnitureSize;
+        
+        const constrainedX = Math.max(minX, Math.min(maxX, finalX));
+        const constrainedY = Math.max(minY, Math.min(maxY, finalY));
+        
+        currentPan.flattenOffset();
+        currentPan.setValue({ x: constrainedX, y: constrainedY });
+        
+        saveFurniturePosition(furnitureId, constrainedX, constrainedY);
+      },
+    });
   };
 
   useEffect(() => {
@@ -369,6 +507,59 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
     fetchPetData();
   }, [animal, petInstanceId]); // Add petInstanceId to dependencies
 
+  // Fetch furniture items for this pet
+  useEffect(() => {
+    async function fetchFurniture() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || !userPetData?.id) return;
+
+        // Fetch furniture assigned to this pet
+        const { data: assignedFurniture, error: furnitureError } = await supabase
+          .from('users_furniture')
+          .select('id, position_x, position_y, furniture_id, furniture ( id, name, image )')
+          .eq('user_pet_id', userPetData.id);
+
+        if (furnitureError) {
+          console.error('Error fetching furniture:', furnitureError);
+          return;
+        }
+
+        setFurnitureItems(assignedFurniture || []);
+        
+        // Initialize pan responders for each furniture item
+        (assignedFurniture || []).forEach((item: any) => {
+          if (!furniturePans.current[item.id]) {
+            furniturePans.current[item.id] = new Animated.ValueXY({
+              x: item.position_x || 0,
+              y: item.position_y || 0
+            });
+          }
+        });
+
+        // Fetch available furniture (not assigned to any pet)
+        const { data: unassignedFurniture, error: unassignedError } = await supabase
+          .from('users_furniture')
+          .select('id, furniture_id, furniture ( id, name, image )')
+          .eq('user_id', session.user.id)
+          .is('user_pet_id', null);
+
+        if (unassignedError) {
+          console.error('Error fetching available furniture:', unassignedError);
+          return;
+        }
+
+        setAvailableFurniture(unassignedFurniture || []);
+      } catch (err) {
+        console.error('Error in fetchFurniture:', err);
+      }
+    }
+
+    if (userPetData?.id) {
+      fetchFurniture();
+    }
+  }, [userPetData]);
+
   // Debug effect to monitor state changes
   useEffect(() => {
     console.log('🔄 State update - petInstanceId:', petInstanceId, 'userPetData:', userPetData);
@@ -415,11 +606,20 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
         resizeMode="cover"
       >
         {/* Fixed UI Elements */}
-        <View style={styles.fixedUIContainer}>
+        <View style={styles.fixedUIContainer} pointerEvents="box-none">
           <View style={styles.titleContainer}>
             <TitleText text={`Meet your ${animal}!`} />
-           
           </View>
+          
+          {/* Add Furniture Button */}
+          <TouchableOpacity 
+            style={styles.addFurnitureButton}
+            onPress={() => setShowFurnitureModal(true)}
+            activeOpacity={0.7}
+          >
+            <AntDesign name="plus" size={20} color="#fff" />
+            <Text style={styles.addFurnitureButtonText}>Add Furniture</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Draggable Pet */}
@@ -458,6 +658,43 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
           </Animatable.View>
         </Animated.View>
 
+        {/* Furniture Items */}
+        {furnitureItems.map((item) => {
+          if (!furniturePans.current[item.id]) {
+            furniturePans.current[item.id] = new Animated.ValueXY({
+              x: item.position_x || 100,
+              y: item.position_y || 100
+            });
+          }
+          
+          return (
+            <Animated.View
+              key={item.id}
+              style={[
+                styles.furnitureItem,
+                {
+                  transform: [
+                    { translateX: furniturePans.current[item.id].x },
+                    { translateY: furniturePans.current[item.id].y }
+                  ],
+                  zIndex: draggingFurnitureId === item.id ? 60 : 30,
+                  elevation: draggingFurnitureId === item.id ? 60 : 30,
+                },
+              ]}
+              {...createFurniturePanResponder(item.id).panHandlers}
+            >
+              <Image
+                source={{ uri: item.furniture.image }}
+                style={[
+                  styles.furnitureImage,
+                  { opacity: draggingFurnitureId === item.id ? 0.8 : 1 }
+                ]}
+                contentFit="contain"
+              />
+            </Animated.View>
+          );
+        })}
+
         {/* Background Overlay */}
         {petData?.bg_overlay && (
           <View
@@ -481,6 +718,50 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
           </View>
         )}
       </ImageBackground>
+      
+      {/* Furniture Selection Modal */}
+      <Modal
+        visible={showFurnitureModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowFurnitureModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Furniture</Text>
+              <TouchableOpacity onPress={() => setShowFurnitureModal(false)}>
+                <AntDesign name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.furnitureList}>
+              {availableFurniture.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No furniture available</Text>
+                  <Text style={styles.emptyStateSubtext}>Complete goals to earn furniture!</Text>
+                </View>
+              ) : (
+                availableFurniture.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.furnitureListItem}
+                    onPress={() => addFurnitureToPet(item.id)}
+                  >
+                    <Image
+                      source={{ uri: item.furniture.image }}
+                      style={styles.furnitureListImage}
+                      contentFit="contain"
+                    />
+                    <Text style={styles.furnitureListText}>{item.furniture.name}</Text>
+                    <AntDesign name="right" size={20} color="#666" />
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1070,18 +1351,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 100,
-    paddingTop: 10, // Much smaller for landscape
+    paddingTop: 10,
     paddingHorizontal: 15,
-    flexDirection: 'row', // Horizontal layout for landscape
+    flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   titleContainer: {
     alignItems: 'center',
     marginTop: 0,
     paddingTop: 0,
-    flex: 1,
-    marginLeft: 15, // Space from back button
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    pointerEvents: 'none',
   },
   dragHint: {
     color: '#ffffff',
@@ -1275,6 +1558,98 @@ const styles = StyleSheet.create({
     color: 'white',
     fontFamily: 'SourGummy',
     fontSize: 16,
+    textAlign: 'center',
+  },
+  
+  // Furniture styles
+  addFurnitureButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#b94ea5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    position: 'absolute',
+    right: 15,
+    top: 10,
+    zIndex: 101,
+  },
+  addFurnitureButtonText: {
+    color: '#fff',
+    fontFamily: 'SourGummy',
+    fontSize: 14,
+  },
+  furnitureItem: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    zIndex: 30,
+  },
+  furnitureImage: {
+    width: 120,
+    height: 120,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '80%',
+    maxHeight: '70%',
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontFamily: 'SourGummy',
+    fontSize: 20,
+    color: '#000',
+  },
+  furnitureList: {
+    maxHeight: 400,
+  },
+  furnitureListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  furnitureListImage: {
+    width: 60,
+    height: 60,
+    marginRight: 15,
+  },
+  furnitureListText: {
+    flex: 1,
+    fontFamily: 'SourGummy',
+    fontSize: 16,
+    color: '#000',
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 30,
+  },
+  emptyStateText: {
+    fontFamily: 'SourGummy',
+    fontSize: 18,
+    color: '#666',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontFamily: 'SourGummy',
+    fontSize: 14,
+    color: '#999',
     textAlign: 'center',
   },
 });
