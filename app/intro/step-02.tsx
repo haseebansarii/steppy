@@ -39,6 +39,7 @@ export default function Index() {
   const [healthSource, setHealthSource] = useState<HealthDataSource>('pedometer');
   const [sourceLoaded, setSourceLoaded] = useState(false);
   const [hasPetToday, setHasPetToday] = useState(false);
+  const [checkingPetToday, setCheckingPetToday] = useState(true);
   
   // Get real-time steps from useHealthData hook (only after source is loaded)
   const { steps: currentSteps, isAvailable, error: healthError, refreshSteps } = useHealthData(sourceLoaded ? healthSource : 'pedometer');
@@ -111,8 +112,12 @@ export default function Index() {
   useEffect(() => {
     const checkPetToday = async () => {
       try {
+        setCheckingPetToday(true);
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        if (!session) {
+          setCheckingPetToday(false);
+          return;
+        }
 
         const today = new Date().toISOString().split('T')[0];
         const { data } = await supabase
@@ -127,11 +132,15 @@ export default function Index() {
         setHasPetToday(!!data);
       } catch (err) {
         console.error('Error checking pet today:', err);
+      } finally {
+        setCheckingPetToday(false);
       }
     };
 
     if (isAuthenticated) {
       checkPetToday();
+    } else {
+      setCheckingPetToday(false);
     }
   }, [isAuthenticated]);
 
@@ -182,7 +191,7 @@ export default function Index() {
             }} />
           </View>
           <View style={appStyles.imageContainerBottom}>
-            {loading || streakLoading ? (
+            {loading || streakLoading || checkingPetToday ? (
               <View style={styles.authErrorContainer}>
                 <BaseText text="Loading..." />
                 <Text style={styles.authErrorText}>Setting up your challenge...</Text>
