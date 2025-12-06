@@ -165,16 +165,16 @@ export function UserFurniture() {
 
       setIsAuthenticated(true);
 
-      // Get user furniture items with furniture details including image
+      // Get user furniture items with furniture details including image and assignment status
       const { data: userFurnitureData, error: furnitureError } = await supabase
         .from('users_furniture')
-        .select('id, created_at, furniture:furniture_id(id, name, image)')
+        .select('id, created_at, user_pet_id, furniture:furniture_id(id, name, image)')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
       if (furnitureError) throw furnitureError;
       
-      // Group furniture by type and count duplicates
+      // Group furniture by type and count total vs available
       const furnitureMap = new Map();
       
       if (userFurnitureData) {
@@ -183,19 +183,24 @@ export function UserFurniture() {
           const furnitureId = furniture?.id;
           const furnitureName = furniture?.name;
           const furnitureImage = furniture?.image;
+          const isAvailable = item.user_pet_id === null; // Available if not assigned to any pet
           
           if (furnitureId && furnitureName) {
             if (furnitureMap.has(furnitureId)) {
-              // Increment count for existing furniture
+              // Increment counts for existing furniture
               const existing = furnitureMap.get(furnitureId);
-              existing.count += 1;
+              existing.totalCount += 1;
+              if (isAvailable) {
+                existing.availableCount += 1;
+              }
             } else {
               // Add new furniture type
               furnitureMap.set(furnitureId, {
                 id: furnitureId,
                 name: furnitureName,
                 image: furnitureImage || '',
-                count: 1,
+                totalCount: 1,
+                availableCount: isAvailable ? 1 : 0,
                 created_at: item.created_at,
                 firstInstanceId: item.id // Store the first instance ID for navigation
               });
@@ -403,11 +408,9 @@ export function UserFurniture() {
               <Text style={styles.furnitureItemText}>
                 {item.name || 'Furniture Item'}
               </Text>
-              {item.count > 1 && (
-                <Text style={styles.furnitureItemCount}>
-                  ({item.count})
-                </Text>
-              )}
+              <Text style={styles.furnitureItemCount} numberOfLines={1} adjustsFontSizeToFit>
+                Have: {item.totalCount} | Available: {item.availableCount}
+              </Text>
             </Pressable>
           </Animatable.View>
         )}
