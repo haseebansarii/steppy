@@ -108,6 +108,8 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
   const [draggingFurnitureId, setDraggingFurnitureId] = useState<number | null>(null);
   const [selectedFurnitureId, setSelectedFurnitureId] = useState<number | null>(null);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [furnitureControlMode, setFurnitureControlMode] = useState<number | null>(null);
+  const [isMovingFurniture, setIsMovingFurniture] = useState(false);
   
   // Pet positioning state
   const pan = useRef(new Animated.ValueXY()).current;
@@ -360,38 +362,54 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
   // Handle double tap on furniture
   const furnitureTapCounts = useRef<{ [key: number]: { count: number; timer: number | null } }>({});
   
+  // Handle tapping outside furniture to clear control mode
+  const handleBackgroundTap = () => {
+    if (furnitureControlMode !== null) {
+      setFurnitureControlMode(null);
+      setIsMovingFurniture(false);
+    }
+  };
+
   const handleFurnitureTap = (furnitureId: number) => {
-    if (!furnitureTapCounts.current[furnitureId]) {
-      furnitureTapCounts.current[furnitureId] = { count: 0, timer: null };
+    // If already in control mode, hide controls
+    if (furnitureControlMode === furnitureId) {
+      setFurnitureControlMode(null);
+      setIsMovingFurniture(false);
+      return;
     }
     
-    const tapData = furnitureTapCounts.current[furnitureId];
-    tapData.count += 1;
-    
-    if (tapData.timer) {
-      clearTimeout(tapData.timer);
+    // If in control mode for different furniture, switch to new furniture
+    if (furnitureControlMode !== null && furnitureControlMode !== furnitureId) {
+      setFurnitureControlMode(furnitureId);
+      setIsMovingFurniture(false);
+      return;
     }
     
-    if (tapData.count === 2) {
-      // Double tap detected
-      setSelectedFurnitureId(furnitureId);
-      setShowRemoveModal(true);
-      tapData.count = 0;
-      tapData.timer = null;
-    } else {
-      // Single tap - wait for potential second tap
-      tapData.timer = setTimeout(() => {
-        tapData.count = 0;
-        tapData.timer = null;
-      }, 300);
-    }
+    // Single tap - show controls immediately
+    setFurnitureControlMode(furnitureId);
+    setIsMovingFurniture(false);
+  };
+
+  // Handle crosshairs click (enable moving)
+  const handleMoveClick = (furnitureId: number) => {
+    setIsMovingFurniture(true);
+    console.log(`🎯 Move mode enabled for furniture ${furnitureId}`);
+  };
+
+  // Handle red X click (show removal confirmation)
+  const handleRemoveClick = (furnitureId: number) => {
+    setSelectedFurnitureId(furnitureId);
+    setShowRemoveModal(true);
+    setFurnitureControlMode(null);
+    setIsMovingFurniture(false);
   };
 
   // Create pan responder for furniture
   const createFurniturePanResponder = (furnitureId: number) => {
     return PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+        // Only allow dragging if in moving mode for this furniture
+        return isMovingFurniture && furnitureControlMode === furnitureId && (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
       },
       onPanResponderGrant: () => {
         setDraggingFurnitureId(furnitureId);
@@ -431,6 +449,10 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
         currentPan.setValue({ x: constrainedX, y: constrainedY });
         
         saveFurniturePosition(furnitureId, constrainedX, constrainedY);
+        
+        // Exit moving mode after successful drag
+        setIsMovingFurniture(false);
+        setFurnitureControlMode(null);
       },
     });
   };
@@ -680,11 +702,16 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
   
   return (
     <View style={styles.petHomeContainer}>
-      <ImageBackground 
-        source={petData?.bg ? { uri: petData.bg } : fallbackBgImage}
-        style={styles.petHomeBackground}
-        resizeMode="cover"
+      <TouchableOpacity 
+        style={{ flex: 1 }} 
+        onPress={handleBackgroundTap} 
+        activeOpacity={1}
       >
+        <ImageBackground 
+          source={petData?.bg ? { uri: petData.bg } : fallbackBgImage}
+          style={styles.petHomeBackground}
+          resizeMode="cover"
+        >
         {/* Fixed UI Elements */}
         <View style={styles.fixedUIContainer} pointerEvents="box-none">
           <View style={styles.titleContainer}>
@@ -747,6 +774,8 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
             });
           }
           
+          const isInControlMode = furnitureControlMode === item.id;
+          
           return (
             <Animated.View
               key={item.id}
@@ -757,8 +786,8 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
                     { translateX: furniturePans.current[item.id].x },
                     { translateY: furniturePans.current[item.id].y }
                   ],
-                  zIndex: draggingFurnitureId === item.id ? 100 : 35,
-                  elevation: draggingFurnitureId === item.id ? 100 : 35,
+                  zIndex: draggingFurnitureId === item.id ? 100 : (isInControlMode ? 90 : 35),
+                  elevation: draggingFurnitureId === item.id ? 100 : (isInControlMode ? 90 : 35),
                 },
               ]}
               {...createFurniturePanResponder(item.id).panHandlers}
@@ -772,11 +801,54 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
                   source={{ uri: item.furniture.image }}
                   style={[
                     styles.furnitureImage,
-                    { opacity: draggingFurnitureId === item.id ? 0.8 : 1 }
+                    { 
+                      opacity: draggingFurnitureId === item.id ? 0.8 : (isInControlMode ? 0.7 : 1),
+                      borderWidth: isInControlMode ? 2 : 0,
+                      borderColor: isInControlMode ? '#007AFF' : 'transparent',
+                      borderRadius: 8,
+                    }
                   ]}
                   contentFit="contain"
                 />
               </TouchableOpacity>
+              
+              {/* Control Overlay */}
+              {isInControlMode && (
+                <View style={styles.furnitureControls}>
+                  {/* Crosshairs (Move) Button */}
+                  <TouchableOpacity
+                    style={[styles.controlButton, styles.moveButton]}
+                    onPress={() => handleMoveClick(item.id)}
+                    activeOpacity={0.8}
+                  >
+                    <FontAwesome 
+                      name="arrows" 
+                      size={20} 
+                      color="#fff" 
+                    />
+                  </TouchableOpacity>
+                  
+                  {/* Red X (Remove) Button */}
+                  <TouchableOpacity
+                    style={[styles.controlButton, styles.removeButton]}
+                    onPress={() => handleRemoveClick(item.id)}
+                    activeOpacity={0.8}
+                  >
+                    <FontAwesome 
+                      name="times" 
+                      size={18} 
+                      color="#fff" 
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {/* Moving Mode Indicator */}
+              {isMovingFurniture && furnitureControlMode === item.id && (
+                <View style={styles.movingIndicator}>
+                  <Text style={styles.movingIndicatorText}>🔄 Moving Mode</Text>
+                </View>
+              )}
             </Animated.View>
           );
         })}
@@ -804,6 +876,7 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
           </View>
         )}
       </ImageBackground>
+      </TouchableOpacity>
       
       {/* Furniture Selection Modal */}
       <Modal
@@ -910,6 +983,8 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
                 onPress={() => {
                   setShowRemoveModal(false);
                   setSelectedFurnitureId(null);
+                  setFurnitureControlMode(null);
+                  setIsMovingFurniture(false);
                 }}
               >
                 <AntDesign name="close" size={20} color="#666" />
@@ -1940,6 +2015,51 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  
+  // Furniture control styles
+  furnitureControls: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 200,
+  },
+  controlButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  moveButton: {
+    backgroundColor: '#007AFF',
+  },
+  removeButton: {
+    backgroundColor: '#FF3B30',
+  },
+  movingIndicator: {
+    position: 'absolute',
+    bottom: -30,
+    left: '50%',
+    transform: [{ translateX: -50 }],
+    backgroundColor: 'rgba(0, 122, 255, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    zIndex: 200,
+  },
+  movingIndicatorText: {
+    color: '#fff',
+    fontFamily: 'SourGummy',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
