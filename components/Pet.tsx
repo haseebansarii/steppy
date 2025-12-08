@@ -702,16 +702,17 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
   
   return (
     <View style={styles.petHomeContainer}>
-      <TouchableOpacity 
-        style={{ flex: 1 }} 
-        onPress={handleBackgroundTap} 
-        activeOpacity={1}
+      <ImageBackground 
+        source={petData?.bg ? { uri: petData.bg } : fallbackBgImage}
+        style={styles.petHomeBackground}
+        resizeMode="cover"
       >
-        <ImageBackground 
-          source={petData?.bg ? { uri: petData.bg } : fallbackBgImage}
-          style={styles.petHomeBackground}
-          resizeMode="cover"
-        >
+        {/* Invisible background tap handler */}
+        <TouchableOpacity
+          style={styles.backgroundTapHandler}
+          onPress={handleBackgroundTap}
+          activeOpacity={1}
+        />
         {/* Fixed UI Elements */}
         <View style={styles.fixedUIContainer} pointerEvents="box-none">
           <View style={styles.titleContainer}>
@@ -876,7 +877,6 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
           </View>
         )}
       </ImageBackground>
-      </TouchableOpacity>
       
       {/* Furniture Selection Modal */}
       <Modal
@@ -2060,6 +2060,14 @@ const styles = StyleSheet.create({
     fontFamily: 'SourGummy',
     fontSize: 12,
     fontWeight: '600',
+  },
+  backgroundTapHandler: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
   },
 });
 
