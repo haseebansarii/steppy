@@ -110,6 +110,9 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [furnitureControlMode, setFurnitureControlMode] = useState<number | null>(null);
   const [isMovingFurniture, setIsMovingFurniture] = useState(false);
+  const [animatingFurniture, setAnimatingFurniture] = useState<{id: number, furniture: any, startPos: {x: number, y: number}} | null>(null);
+  const animationPan = useRef(new Animated.ValueXY()).current;
+  const [flippedFurniture, setFlippedFurniture] = useState<Set<number>>(new Set());
   
   // Pet positioning state
   const pan = useRef(new Animated.ValueXY()).current;
@@ -255,36 +258,97 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
     }
   };
 
-  // Add furniture to pet
-  const addFurnitureToPet = async (furnitureItemId: number) => {
+  // Add furniture to pet with magical animation
+  const addFurnitureToPet = async (furnitureItemId: number, furnitureData: any, cardPosition?: {x: number, y: number}) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || !userPetData?.id) return;
 
-      // Update furniture to assign it to this pet with default position
-      const defaultX = 100;
-      const defaultY = 100;
+      // Generate random position for furniture in room
+      const roomCenterX = screenData.width / 2 - 60;
+      const roomCenterY = screenData.height / 2 - 60;
+      const randomOffsetX = (Math.random() - 0.5) * 200;
+      const randomOffsetY = (Math.random() - 0.5) * 150;
+      const finalX = Math.max(50, Math.min(screenData.width - 170, roomCenterX + randomOffsetX));
+      const finalY = Math.max(100, Math.min(screenData.height - 170, roomCenterY + randomOffsetY));
       
+      // Start animation from modal position (or default if not provided)
+      const startX = cardPosition?.x || screenData.width + 100;
+      const startY = cardPosition?.y || screenData.height / 2;
+      
+      // Set up animation
+      setAnimatingFurniture({ id: furnitureItemId, furniture: furnitureData, startPos: { x: startX, y: startY } });
+      animationPan.setValue({ x: startX, y: startY });
+      
+      // Close modal immediately to show animation
+      setShowFurnitureModal(false);
+      
+      // Animate furniture flying to final position with magical effect
+      Animated.sequence([
+        // First, a small bounce up
+        Animated.timing(animationPan, {
+          toValue: { x: startX, y: startY - 50 },
+          duration: 200,
+          useNativeDriver: false,
+        }),
+        // Then fly to destination with easing
+        Animated.timing(animationPan, {
+          toValue: { x: finalX, y: finalY },
+          duration: 1000,
+          useNativeDriver: false,
+        }),
+        // Small bounce on landing
+        Animated.sequence([
+          Animated.timing(animationPan, {
+            toValue: { x: finalX, y: finalY - 20 },
+            duration: 150,
+            useNativeDriver: false,
+          }),
+          Animated.timing(animationPan, {
+            toValue: { x: finalX, y: finalY },
+            duration: 150,
+            useNativeDriver: false,
+          }),
+        ]),
+      ]).start(() => {
+        // Animation complete, now save to database
+        saveFurnitureToDatabase(furnitureItemId, finalX, finalY);
+      });
+      
+    } catch (err) {
+      console.error('💥 Error in addFurnitureToPet:', err);
+      Alert.alert('Error', 'Failed to add furniture');
+      setAnimatingFurniture(null);
+    }
+  };
+  
+  // Separate function to save furniture to database after animation
+  const saveFurnitureToDatabase = async (furnitureItemId: number, finalX: number, finalY: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !userPetData?.id) return;
+
       const { error } = await supabase
         .from('users_furniture')
         .update({ 
           user_pet_id: userPetData.id,
-          position_x: defaultX,
-          position_y: defaultY
+          position_x: finalX,
+          position_y: finalY,
+          flip: 'false'
         })
         .eq('id', furnitureItemId)
         .eq('user_id', session.user.id);
 
       if (error) {
-        console.error('❌ Error adding furniture to pet:', error);
-        Alert.alert('Error', 'Failed to add furniture');
+        console.error('❌ Error saving furniture to database:', error);
+        setAnimatingFurniture(null);
         return;
       }
 
       // Refresh furniture lists
       const { data: assignedFurniture } = await supabase
         .from('users_furniture')
-        .select('id, position_x, position_y, furniture_id, furniture ( id, name, image )')
+        .select('id, position_x, position_y, flip, furniture_id, furniture ( id, name, image )')
         .eq('user_pet_id', userPetData.id);
 
       const { data: unassignedFurniture } = await supabase
@@ -299,15 +363,28 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
       // Initialize pan responder for new furniture
       if (!furniturePans.current[furnitureItemId]) {
         furniturePans.current[furnitureItemId] = new Animated.ValueXY({
-          x: defaultX,
-          y: defaultY
+          x: finalX,
+          y: finalY
         });
       }
       
-      setShowFurnitureModal(false);
+      // Update flip state from refreshed data
+      const newFlippedSet = new Set(flippedFurniture);
+      (assignedFurniture || []).forEach((item: any) => {
+        if (item.flip === 'true') {
+          newFlippedSet.add(item.id);
+        } else {
+          newFlippedSet.delete(item.id);
+        }
+      });
+      setFlippedFurniture(newFlippedSet);
+      
+      // Clear animation state
+      setAnimatingFurniture(null);
+      
     } catch (err) {
-      console.error('💥 Error in addFurnitureToPet:', err);
-      Alert.alert('Error', 'Failed to add furniture');
+      console.error('💥 Error saving furniture:', err);
+      setAnimatingFurniture(null);
     }
   };
 
@@ -337,7 +414,7 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
       // Refresh furniture lists
       const { data: assignedFurniture } = await supabase
         .from('users_furniture')
-        .select('id, position_x, position_y, furniture_id, furniture ( id, name, image )')
+        .select('id, position_x, position_y, flip, furniture_id, furniture ( id, name, image )')
         .eq('user_pet_id', userPetData.id);
 
       const { data: unassignedFurniture } = await supabase
@@ -351,6 +428,15 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
       
       // Remove pan responder for removed furniture
       delete furniturePans.current[furnitureItemId];
+      
+      // Update flip state from refreshed data (removed furniture won't be in the list)
+      const newFlippedSet = new Set<number>();
+      (assignedFurniture || []).forEach((item: any) => {
+        if (item.flip === 'true') {
+          newFlippedSet.add(item.id);
+        }
+      });
+      setFlippedFurniture(newFlippedSet);
       
       console.log('✅ Furniture removed successfully');
     } catch (err) {
@@ -402,6 +488,53 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
     setShowRemoveModal(true);
     setFurnitureControlMode(null);
     setIsMovingFurniture(false);
+  };
+
+  // Handle flip click (toggle horizontal flip)
+  const handleFlipClick = async (furnitureId: number) => {
+    const isCurrentlyFlipped = flippedFurniture.has(furnitureId);
+    const newFlipState = !isCurrentlyFlipped;
+    
+    // Update local state immediately for responsive UI
+    setFlippedFurniture(prev => {
+      const newSet = new Set(prev);
+      if (newFlipState) {
+        newSet.add(furnitureId);
+      } else {
+        newSet.delete(furnitureId);
+      }
+      return newSet;
+    });
+    
+    // Save flip state to database
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { error } = await supabase
+        .from('users_furniture')
+        .update({ flip: newFlipState ? 'true' : 'false' })
+        .eq('id', furnitureId)
+        .eq('user_id', session.user.id);
+
+      if (error) {
+        console.error('❌ Error saving flip state:', error);
+        // Revert local state on error
+        setFlippedFurniture(prev => {
+          const newSet = new Set(prev);
+          if (isCurrentlyFlipped) {
+            newSet.add(furnitureId);
+          } else {
+            newSet.delete(furnitureId);
+          }
+          return newSet;
+        });
+      } else {
+        console.log(`✅ Flip state saved: ${furnitureId} = ${newFlipState}`);
+      }
+    } catch (err) {
+      console.error('💥 Error in handleFlipClick:', err);
+    }
   };
 
   // Create pan responder for furniture
@@ -619,7 +752,7 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
         // Fetch furniture assigned to this pet
         const { data: assignedFurniture, error: furnitureError } = await supabase
           .from('users_furniture')
-          .select('id, position_x, position_y, furniture_id, furniture ( id, name, image )')
+          .select('id, position_x, position_y, flip, furniture_id, furniture ( id, name, image )')
           .eq('user_pet_id', userPetData.id);
 
         if (furnitureError) {
@@ -629,7 +762,8 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
 
         setFurnitureItems(assignedFurniture || []);
         
-        // Initialize pan responders for each furniture item
+        // Initialize pan responders and flip state for each furniture item
+        const newFlippedSet = new Set<number>();
         (assignedFurniture || []).forEach((item: any) => {
           if (!furniturePans.current[item.id]) {
             furniturePans.current[item.id] = new Animated.ValueXY({
@@ -637,7 +771,14 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
               y: item.position_y || 0
             });
           }
+          
+          // Initialize flip state from database
+          if (item.flip === 'true') {
+            newFlippedSet.add(item.id);
+          }
         });
+        
+        setFlippedFurniture(newFlippedSet);
 
         // Fetch available furniture (not assigned to any pet)
         const { data: unassignedFurniture, error: unassignedError } = await supabase
@@ -807,6 +948,7 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
                       borderWidth: isInControlMode ? 2 : 0,
                       borderColor: isInControlMode ? '#007AFF' : 'transparent',
                       borderRadius: 8,
+                      transform: [{ scaleX: flippedFurniture.has(item.id) ? -1 : 1 }],
                     }
                   ]}
                   contentFit="contain"
@@ -825,6 +967,19 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
                     <FontAwesome 
                       name="arrows" 
                       size={20} 
+                      color="#fff" 
+                    />
+                  </TouchableOpacity>
+                  
+                  {/* Flip (Horizontal) Button */}
+                  <TouchableOpacity
+                    style={[styles.controlButton, styles.flipButton]}
+                    onPress={() => handleFlipClick(item.id)}
+                    activeOpacity={0.8}
+                  >
+                    <FontAwesome 
+                      name="exchange" 
+                      size={16} 
                       color="#fff" 
                     />
                   </TouchableOpacity>
@@ -853,6 +1008,52 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
             </Animated.View>
           );
         })}
+
+        {/* Animated Furniture (Flying Effect) */}
+        {animatingFurniture && (
+          <Animated.View
+            style={[
+              styles.animatedFurniture,
+              {
+                transform: [
+                  { translateX: animationPan.x },
+                  { translateY: animationPan.y }
+                ],
+                zIndex: 200,
+                elevation: 200,
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Animatable.View
+              animation="pulse"
+              iterationCount="infinite"
+              duration={500}
+              style={styles.magicalGlow}
+            >
+              <Image
+                source={{ uri: animatingFurniture.furniture.image }}
+                style={[
+                  styles.animatedFurnitureImage,
+                  { transform: [{ scaleX: flippedFurniture.has(animatingFurniture.id) ? -1 : 1 }] }
+                ]}
+                contentFit="contain"
+              />
+              {/* Sparkle effects */}
+              <Animatable.View
+                animation="rotate"
+                iterationCount="infinite"
+                duration={2000}
+                style={styles.sparkleContainer}
+              >
+                <Text style={[styles.sparkle, { top: -10, left: -10 }]}>✨</Text>
+                <Text style={[styles.sparkle, { top: -15, right: -10 }]}>⭐</Text>
+                <Text style={[styles.sparkle, { bottom: -10, left: -5 }]}>💫</Text>
+                <Text style={[styles.sparkle, { bottom: -15, right: -5 }]}>✨</Text>
+              </Animatable.View>
+            </Animatable.View>
+          </Animated.View>
+        )}
 
         {/* Background Overlay */}
         {petData?.bg_overlay && (
@@ -920,7 +1121,7 @@ export function PetHome({ animal, petInstanceId }: { animal: string; petInstance
                   <TouchableOpacity
                     key={group.furniture.id}
                     style={styles.furnitureListItem}
-                    onPress={() => addFurnitureToPet(group.items[0].id)}
+                    onPress={() => addFurnitureToPet(group.items[0].id, group.furniture)}
                   >
                     <Image
                       source={{ uri: group.furniture.image }}
@@ -2020,10 +2221,10 @@ const styles = StyleSheet.create({
   // Furniture control styles
   furnitureControls: {
     position: 'absolute',
-    top: -10,
-    right: -10,
+    top: -15,
+    right: -15,
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     zIndex: 200,
   },
   controlButton: {
@@ -2043,6 +2244,9 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     backgroundColor: '#FF3B30',
+  },
+  flipButton: {
+    backgroundColor: '#FF9500',
   },
   movingIndicator: {
     position: 'absolute',
@@ -2068,6 +2272,40 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 1,
+  },
+  
+  // Magical animation styles
+  animatedFurniture: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+  },
+  animatedFurnitureImage: {
+    width: 120,
+    height: 120,
+  },
+  magicalGlow: {
+    width: 120,
+    height: 120,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+    elevation: 15,
+  },
+  sparkleContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  sparkle: {
+    position: 'absolute',
+    fontSize: 16,
+    textShadowColor: '#FFD700',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
 });
 
