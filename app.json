@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "camel",
+    "name": "Steppy",
     "slug": "camel",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/Steppy.png",
     "scheme": "com.steppy",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
